@@ -1,0 +1,290 @@
+import { useMemo, useRef, useState } from "react";
+import { Button, Card, Input } from "../components/ui";
+import { apiFetch } from "../lib/api";
+import type { Appointment, DocumentItem, Notice, Patient } from "../types";
+import type { Dispatch, SetStateAction } from "react";
+
+type Props = {
+  setNotice: Dispatch<SetStateAction<Notice | null>>;
+};
+
+type Invoice = {
+  id: number;
+  invoice_no?: string;
+  patient_id?: string;
+  module?: string;
+  doctor_name?: string | null;
+  clinic_name?: string | null;
+  subtotal?: number;
+  tax?: number;
+  discount?: number;
+  total_amount?: number;
+  paid_amount?: number;
+  advance_amount?: number;
+  refunded_amount?: number;
+  due_amount?: number;
+  payment_status?: string;
+  created_at?: string;
+};
+
+type Diagnostic = {
+  id: number;
+  invoice_no?: string | null;
+  patient_id?: string | null;
+  doctor_name?: string | null;
+  test_name?: string;
+  amount?: number;
+  paid_amount?: number;
+  due_amount?: number;
+  status?: string;
+  order_status?: string;
+  created_at?: string;
+};
+
+type Admission = {
+  id: number;
+  admission_date?: string;
+  discharge_date?: string | null;
+  notes?: string | null;
+};
+
+type JourneyEvent = {
+  date?: string;
+  title: string;
+  detail: string;
+  amount?: number;
+};
+
+const money = (value: unknown) => `₹${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+const compactDate = (value?: string | null) => {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+};
+
+const fullName = (patient: Patient | null) => {
+  if (!patient) return "-";
+  const nameStr = [patient.name, patient.middle_name, patient.last_name].filter(Boolean).join(" ").trim() || patient.patient_id;
+  return `${nameStr} (${patient.patient_id})`;
+};
+
+export default function PatientJourneyPage({ setNotice }: Props) {
+  const [query, setQuery] = useState("");
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [admissions, setAdmissions] = useState<Admission[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const journeyPrintRef = useRef<HTMLDivElement | null>(null);
+
+  const totals = useMemo(() => {
+    const invoiceBilled = invoices.reduce((sum, row) => sum + Number(row.total_amount || 0), 0);
+    const invoicePaid = invoices.reduce((sum, row) => sum + Number(row.paid_amount || 0) + Number(row.advance_amount || 0) - Number(row.refunded_amount || 0), 0);
+    const invoiceDue = invoices.reduce((sum, row) => sum + Number(row.due_amount || 0), 0);
+    const testBilled = diagnostics.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    const testPaid = diagnostics.reduce((sum, row) => sum + Number(row.paid_amount || 0), 0);
+    const testDue = diagnostics.reduce((sum, row) => sum + Number(row.due_amount || 0), 0);
+    return {
+      billed: invoiceBilled + testBilled,
+      paid: invoicePaid + testPaid,
+      due: invoiceDue + testDue,
+      tests: diagnostics.length,
+      visits: appointments.length,
+    };
+  }, [appointments.length, diagnostics, invoices]);
+
+  const timeline = useMemo<JourneyEvent[]>(() => {
+    const events: JourneyEvent[] = [];
+    if (selectedPatient?.created_at) {
+      events.push({ date: selectedPatient.created_at, title: "Patient Registered", detail: `UHID ${selectedPatient.patient_id}` });
+    }
+    admissions.forEach((admission) => events.push({ date: admission.admission_date, title: "Admission / Registration Visit", detail: admission.notes || "Initial registration / admission" }));
+    appointments.forEach((appointment) => events.push({ date: appointment.appointment_date, title: `${appointment.visit_type || "OP"} Appointment`, detail: `${appointment.department || "Department"} • ${appointment.doctor_name || "Doctor not assigned"} • ${appointment.status}` }));
+    diagnostics.forEach((test) => events.push({ date: test.created_at, title: `Lab/Test: ${test.test_name || "Diagnostic test"}`, detail: `Paid ${money(test.paid_amount)} • Due ${money(test.due_amount)} • ${test.status || "status pending"}`, amount: Number(test.amount || 0) }));
+    invoices.forEach((invoice) => events.push({ date: invoice.created_at, title: `Invoice ${invoice.invoice_no || invoice.id}`, detail: `${invoice.module || "Billing"} • Paid ${money(invoice.paid_amount)} • Due ${money(invoice.due_amount)} • ${invoice.payment_status || "status pending"}`, amount: Number(invoice.total_amount || 0) }));
+    documents.forEach((document) => events.push({ date: document.created_at, title: `Document Uploaded`, detail: `${document.doc_type || "Document"}${document.file_name ? ` • ${document.file_name}` : ""}` }));
+    return events.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+  }, [admissions, appointments, diagnostics, documents, invoices, selectedPatient]);
+
+  const searchPatients = async () => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setNotice({ type: "warning", message: "Enter UHID, mobile number, Aadhaar, or patient name." });
+      return;
+    }
+    setSearching(true);
+    try {
+      const data = await apiFetch<{ patients?: Patient[] }>(`/api/patients?q=${encodeURIComponent(trimmed)}`);
+      const matches = data.patients || [];
+      setPatients(matches);
+      if (matches.length === 1) {
+        await loadJourney(matches[0]);
+      }
+      if (!matches.length) {
+        setSelectedPatient(null);
+        setNotice({ type: "warning", message: "No patient found for this search." });
+      }
+    } catch (error) {
+      setNotice({ type: "error", message: error instanceof Error ? error.message : "Unable to search patients." });
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const loadJourney = async (patient: Patient) => {
+    setSelectedPatient(patient);
+    setLoading(true);
+    try {
+      const patientId = patient.patient_id;
+      const [appointmentData, invoiceData, diagnosticData, documentData, admissionData] = await Promise.all([
+        apiFetch<{ appointments?: Appointment[] }>("/api/appointments"),
+        apiFetch<{ invoices?: Invoice[] }>(`/api/billing/invoices?patient_id=${encodeURIComponent(patientId)}`),
+        apiFetch<{ diagnostics?: Diagnostic[] }>(`/api/lab/diagnostics?patient_id=${encodeURIComponent(patientId)}`),
+        apiFetch<{ documents?: DocumentItem[] }>(`/api/patients/${encodeURIComponent(patientId)}/documents`),
+        apiFetch<{ admissions?: Admission[] }>(`/api/patients/${encodeURIComponent(patientId)}/admissions`),
+      ]);
+      setAppointments((appointmentData.appointments || []).filter((row) => row.patient_id === patientId));
+      setInvoices(invoiceData.invoices || []);
+      setDiagnostics(diagnosticData.diagnostics || []);
+      setDocuments(documentData.documents || []);
+      setAdmissions(admissionData.admissions || []);
+    } catch (error) {
+      setNotice({ type: "error", message: error instanceof Error ? error.message : "Unable to load patient journey." });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const printSelectedJourney = () => {
+    if (!selectedPatient || !journeyPrintRef.current) {
+      setNotice({ type: "warning", message: "Search and select a patient before printing journey." });
+      return;
+    }
+    const printWindow = window.open("", "_blank", "width=980,height=720");
+    if (!printWindow) {
+      setNotice({ type: "warning", message: "Popup blocked. Allow popups to print the selected patient journey." });
+      return;
+    }
+    const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+      .map((node) => node.outerHTML)
+      .join("\n");
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>${selectedPatient.patient_id} Patient Journey</title>
+          ${styles}
+          <style>
+            body { margin: 18px; background: #fff; }
+            .patient-journey-print-area { display: grid; gap: 14px; }
+            .no-print, .journey-search-card { display: none !important; }
+          </style>
+        </head>
+        <body>${journeyPrintRef.current.innerHTML}</body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  };
+
+  return (
+    <section className="module-page patient-journey-page">
+      <div className="module-panel-head">
+        <div>
+          <h3>Patient Journey</h3>
+          <p className="muted">Search one patient and view registration, visits, tests, invoices, payments, and due balance in one place.</p>
+        </div>
+        <Button type="button" variant="secondary" onClick={printSelectedJourney} disabled={!selectedPatient}>
+          Print Journey
+        </Button>
+      </div>
+
+      <Card className="journey-search-card">
+        <h4>Patient Lookup</h4>
+        <p className="muted">Search by UHID / Patient ID, mobile number, Aadhaar number, or patient name.</p>
+        <div className="journey-search-row">
+          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="e.g., PAT-20260608-1001 / mobile / name" onKeyDown={(event) => { if (event.key === "Enter") void searchPatients(); }} />
+          <Button type="button" variant="primary" onClick={() => void searchPatients()} disabled={searching}>{searching ? "Searching..." : "Search Patient"}</Button>
+        </div>
+        {patients.length > 1 && (
+          <div className="journey-patient-results">
+            {patients.slice(0, 8).map((patient) => (
+              <button key={patient.patient_id} type="button" onClick={() => void loadJourney(patient)} className="journey-patient-result">
+                <strong>{fullName(patient)}</strong>
+                <span>{patient.patient_id} • {patient.phone || "No mobile"} • {patient.gender || "-"}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {selectedPatient && (
+        <div ref={journeyPrintRef} className="patient-journey-print-area">
+          <div className="stat-grid journey-stat-grid">
+            <div className="stat-card"><p>Total Billed</p><h3>{money(totals.billed)}</h3></div>
+            <div className="stat-card"><p>Total Paid</p><h3>{money(totals.paid)}</h3></div>
+            <div className="stat-card"><p>Total Due</p><h3>{money(totals.due)}</h3></div>
+            <div className="stat-card"><p>Tests</p><h3>{totals.tests}</h3></div>
+            <div className="stat-card"><p>Visits</p><h3>{totals.visits}</h3></div>
+          </div>
+
+          <Card>
+            <div className="module-panel-head">
+              <div>
+                <h4>{fullName(selectedPatient)}</h4>
+                <p className="muted">UHID: {selectedPatient.patient_id} • Mobile: {selectedPatient.phone || "-"} • Gender: {selectedPatient.gender || "-"} • Age: {selectedPatient.age || "-"}</p>
+              </div>
+            </div>
+            <div className="journey-detail-grid">
+              <div><strong>Address</strong><span>{selectedPatient.address || "-"}</span></div>
+              <div><strong>Allergies</strong><span>{selectedPatient.allergies || "-"}</span></div>
+              <div><strong>Emergency Contact</strong><span>{selectedPatient.emergency_contact || "-"} {selectedPatient.emergency_relation ? `(${selectedPatient.emergency_relation})` : ""}</span></div>
+              <div><strong>Family Mobile</strong><span>{selectedPatient.family_mobile || "-"}</span></div>
+            </div>
+          </Card>
+
+          <Card>
+            <h4>Test-wise Payment Details</h4>
+            <div className="module-table module-table-journey-tests">
+              <div className="table-head"><span>Date</span><span>Test</span><span>Doctor</span><span>Bill</span><span>Paid</span><span>Due</span><span>Status</span></div>
+              {diagnostics.length ? diagnostics.map((test) => (
+                <div className="table-row" key={test.id}><span>{compactDate(test.created_at)}</span><span>{test.test_name || "-"}</span><span>{test.doctor_name || "-"}</span><span>{money(test.amount)}</span><span>{money(test.paid_amount)}</span><span>{money(test.due_amount)}</span><span>{test.status || "-"}</span></div>
+              )) : <div className="empty-state">No lab/test billing found for this patient.</div>}
+            </div>
+          </Card>
+
+          <Card>
+            <h4>Invoices & Transactions</h4>
+            <div className="module-table module-table-journey-invoices">
+              <div className="table-head"><span>Date</span><span>Invoice</span><span>Module</span><span>Total</span><span>Paid/Advance</span><span>Due</span><span>Status</span></div>
+              {invoices.length ? invoices.map((invoice) => (
+                <div className="table-row" key={invoice.id}><span>{compactDate(invoice.created_at)}</span><span>{invoice.invoice_no || invoice.id}</span><span>{invoice.module || "-"}</span><span>{money(invoice.total_amount)}</span><span>{money(Number(invoice.paid_amount || 0) + Number(invoice.advance_amount || 0))}</span><span>{money(invoice.due_amount)}</span><span>{invoice.payment_status || "-"}</span></div>
+              )) : <div className="empty-state">No invoices found for this patient.</div>}
+            </div>
+          </Card>
+
+          <Card>
+            <h4>Complete Journey Timeline</h4>
+            {loading ? <p className="muted">Loading journey...</p> : (
+              <div className="journey-timeline">
+                {timeline.length ? timeline.map((item, index) => (
+                  <div className="journey-timeline-item" key={`${item.title}-${index}`}>
+                    <div className="journey-dot" />
+                    <div><strong>{item.title}</strong><p>{compactDate(item.date)} • {item.detail}{item.amount ? ` • Amount ${money(item.amount)}` : ""}</p></div>
+                  </div>
+                )) : <p className="muted">No journey events found yet.</p>}
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+    </section>
+  );
+}
