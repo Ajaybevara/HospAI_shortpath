@@ -26,9 +26,9 @@ const EMPTY_FORM: AdminForm = {
   full_name: "",
   email: "",
   phone: "",
-  department: "Administration",
+  department: "",
   user_type: "normal",
-  module_access: [...DEFAULT_MODULE_ACCESS],
+  module_access: [],
 };
 
 export default function AdminPage({ setNotice }: Props) {

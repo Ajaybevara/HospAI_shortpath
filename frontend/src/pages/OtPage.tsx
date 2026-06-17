@@ -68,7 +68,7 @@ const DEFAULT_THEATRE_FORM: TheatreForm = {
   id: "",
   theatre_code: "",
   theatre_name: "",
-  status: "available",
+  status: "",
   equipment_notes: "",
 };
 
@@ -79,8 +79,8 @@ const DEFAULT_SURGERY_FORM: SurgeryForm = {
   procedure_name: "",
   surgeon_name: "",
   scheduled_start: "",
-  estimated_duration_hours: "1",
-  status: "scheduled",
+  estimated_duration_hours: "",
+  status: "",
   equipment_required: "",
   notes: "",
 };

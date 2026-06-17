@@ -1265,6 +1265,40 @@ def ensure_hospai_module_tables(conn):
         cursor.execute("ALTER TABLE diagnostics ADD COLUMN collected_at TIMESTAMP")
     if "reported_at" not in diagnostic_columns:
         cursor.execute("ALTER TABLE diagnostics ADD COLUMN reported_at TIMESTAMP")
+    if "patient_name" not in diagnostic_columns:
+        cursor.execute("ALTER TABLE diagnostics ADD COLUMN patient_name TEXT")
+    if "age" not in diagnostic_columns:
+        cursor.execute("ALTER TABLE diagnostics ADD COLUMN age INTEGER")
+    if "gender" not in diagnostic_columns:
+        cursor.execute("ALTER TABLE diagnostics ADD COLUMN gender TEXT")
+    if "department" not in diagnostic_columns:
+        cursor.execute("ALTER TABLE diagnostics ADD COLUMN department TEXT")
+    if "visit_type" not in diagnostic_columns:
+        cursor.execute("ALTER TABLE diagnostics ADD COLUMN visit_type TEXT")
+    if "visit_id" not in diagnostic_columns:
+        cursor.execute("ALTER TABLE diagnostics ADD COLUMN visit_id TEXT")
+    if "bill_date" not in diagnostic_columns:
+        cursor.execute("ALTER TABLE diagnostics ADD COLUMN bill_date DATE")
+    if "due_date" not in diagnostic_columns:
+        cursor.execute("ALTER TABLE diagnostics ADD COLUMN due_date DATE")
+    if "payment_mode" not in diagnostic_columns:
+        cursor.execute("ALTER TABLE diagnostics ADD COLUMN payment_mode TEXT")
+    if "transaction_id" not in diagnostic_columns:
+        cursor.execute("ALTER TABLE diagnostics ADD COLUMN transaction_id TEXT")
+    if "discount_percentage" not in diagnostic_columns:
+        cursor.execute("ALTER TABLE diagnostics ADD COLUMN discount_percentage REAL DEFAULT 0")
+    if "discount_amount" not in diagnostic_columns:
+        cursor.execute("ALTER TABLE diagnostics ADD COLUMN discount_amount REAL DEFAULT 0")
+    if "tax_percentage" not in diagnostic_columns:
+        cursor.execute("ALTER TABLE diagnostics ADD COLUMN tax_percentage REAL DEFAULT 0")
+    if "tax_amount" not in diagnostic_columns:
+        cursor.execute("ALTER TABLE diagnostics ADD COLUMN tax_amount REAL DEFAULT 0")
+    if "report_delivery_mode" not in diagnostic_columns:
+        cursor.execute("ALTER TABLE diagnostics ADD COLUMN report_delivery_mode TEXT")
+    if "report_delivery_date" not in diagnostic_columns:
+        cursor.execute("ALTER TABLE diagnostics ADD COLUMN report_delivery_date DATE")
+    if "remarks" not in diagnostic_columns:
+        cursor.execute("ALTER TABLE diagnostics ADD COLUMN remarks TEXT")
 
     cursor.execute(
         f"""
@@ -4531,8 +4565,16 @@ def create_diagnostic_record(data):
             """
             INSERT INTO diagnostics (
                 invoice_no, patient_id, vendor_id, doctor_name, test_name, amount, paid_amount, due_amount, status,
-                sample_barcode, order_status, collected_at, reported_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                sample_barcode, order_status, collected_at, reported_at,
+                patient_name, age, gender, department, visit_type, visit_id,
+                bill_date, due_date, payment_mode, transaction_id,
+                discount_percentage, discount_amount, tax_percentage, tax_amount,
+                report_delivery_mode, report_delivery_date, remarks
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                     ?, ?, ?, ?, ?, ?,
+                     ?, ?, ?, ?,
+                     ?, ?, ?, ?,
+                     ?, ?, ?)
             """,
             (
                 data.get("invoice_no"),
@@ -4548,6 +4590,23 @@ def create_diagnostic_record(data):
                 data.get("order_status", "ordered"),
                 data.get("collected_at"),
                 data.get("reported_at"),
+                data.get("patient_name"),
+                data.get("age"),
+                data.get("gender"),
+                data.get("department"),
+                data.get("visit_type"),
+                data.get("visit_id"),
+                data.get("bill_date"),
+                data.get("due_date"),
+                data.get("payment_mode"),
+                data.get("transaction_id"),
+                float(data.get("discount_percentage", 0)),
+                float(data.get("discount_amount", 0)),
+                float(data.get("tax_percentage", 0)),
+                float(data.get("tax_amount", 0)),
+                data.get("report_delivery_mode"),
+                data.get("report_delivery_date"),
+                data.get("remarks"),
             ),
         )
         diagnostic_id = cursor.lastrowid
@@ -4601,7 +4660,24 @@ def update_diagnostic_record(diagnostic_id, data):
                 sample_barcode = ?,
                 order_status = ?,
                 collected_at = ?,
-                reported_at = ?
+                reported_at = ?,
+                patient_name = ?,
+                age = ?,
+                gender = ?,
+                department = ?,
+                visit_type = ?,
+                visit_id = ?,
+                bill_date = ?,
+                due_date = ?,
+                payment_mode = ?,
+                transaction_id = ?,
+                discount_percentage = ?,
+                discount_amount = ?,
+                tax_percentage = ?,
+                tax_amount = ?,
+                report_delivery_mode = ?,
+                report_delivery_date = ?,
+                remarks = ?
             WHERE id = ?
             """,
             (
@@ -4618,6 +4694,23 @@ def update_diagnostic_record(diagnostic_id, data):
                 data.get("order_status", existing["order_status"]),
                 data.get("collected_at", existing["collected_at"]),
                 data.get("reported_at", existing["reported_at"]),
+                data.get("patient_name", existing.get("patient_name")),
+                data.get("age", existing.get("age")),
+                data.get("gender", existing.get("gender")),
+                data.get("department", existing.get("department")),
+                data.get("visit_type", existing.get("visit_type")),
+                data.get("visit_id", existing.get("visit_id")),
+                data.get("bill_date", existing.get("bill_date")),
+                data.get("due_date", existing.get("due_date")),
+                data.get("payment_mode", existing.get("payment_mode")),
+                data.get("transaction_id", existing.get("transaction_id")),
+                float(data.get("discount_percentage", existing.get("discount_percentage") or 0)),
+                float(data.get("discount_amount", existing.get("discount_amount") or 0)),
+                float(data.get("tax_percentage", existing.get("tax_percentage") or 0)),
+                float(data.get("tax_amount", existing.get("tax_amount") or 0)),
+                data.get("report_delivery_mode", existing.get("report_delivery_mode")),
+                data.get("report_delivery_date", existing.get("report_delivery_date")),
+                data.get("remarks", existing.get("remarks")),
                 diagnostic_id,
             ),
         )

@@ -78,7 +78,7 @@ export default function ReadmitPage({ onSelect, setNotice, onReadmitComplete, oc
     phone: "",
     allergies: "",
     symptoms: "",
-    gender: "Female",
+    gender: "",
     pregnant: false,
   });
   const [docFiles, setDocFiles] = useState<Record<string, File>>({});

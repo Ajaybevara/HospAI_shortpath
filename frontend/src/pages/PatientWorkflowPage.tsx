@@ -19,16 +19,16 @@ const titles = {
 
 const DEFAULTS = {
   prescription: {
-    patient_id: "", patient_name: "", doctor_name: "", department: "", diagnosis: "", medicines: "", lab_tests: "", advice: "", follow_up_date: today, status: "issued",
+    patient_id: "", patient_name: "", doctor_name: "", department: "", diagnosis: "", medicines: "", lab_tests: "", advice: "", follow_up_date: "", status: "",
   },
   "ip-admission": {
-    patient_id: "", patient_name: "", admission_type: "planned", ward: "", room_no: "", bed_no: "", consultant: "", diagnosis: "", deposit_amount: "0", insurance_status: "not_required", status: "admitted",
+    patient_id: "", patient_name: "", admission_type: "", ward: "", room_no: "", bed_no: "", consultant: "", diagnosis: "", deposit_amount: "", insurance_status: "", status: "",
   },
   "nurse-station": {
-    patient_id: "", patient_name: "", bp: "", temperature: "", pulse: "", spo2: "", medicine_given: "", shift: "morning", nurse_name: "", notes: "",
+    patient_id: "", patient_name: "", bp: "", temperature: "", pulse: "", spo2: "", medicine_given: "", shift: "", nurse_name: "", notes: "",
   },
   "discharge-summary": {
-    patient_id: "", patient_name: "", admission_date: today, discharge_date: today, final_diagnosis: "", treatment_summary: "", discharge_medicines: "", follow_up_plan: "", billing_clearance: "pending", status: "draft",
+    patient_id: "", patient_name: "", admission_date: "", discharge_date: "", final_diagnosis: "", treatment_summary: "", discharge_medicines: "", follow_up_plan: "", billing_clearance: "", status: "",
   },
 };
 

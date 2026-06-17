@@ -101,11 +101,11 @@ const EMPTY_SUMMARY: AccountsSummary = {
 const DEFAULT_LEDGER_FORM: LedgerForm = {
   id: "",
   entry_date: "",
-  entry_type: "expense",
+  entry_type: "",
   category: "",
   reference_no: "",
   counterparty_name: "",
-  amount: "0",
+  amount: "",
   notes: "",
 };
 
@@ -113,10 +113,10 @@ const DEFAULT_VENDOR_FORM: VendorForm = {
   id: "",
   vendor_name: "",
   invoice_ref: "",
-  amount: "0",
+  amount: "",
   payment_date: "",
-  payment_mode: "bank",
-  status: "paid",
+  payment_mode: "",
+  status: "",
   notes: "",
 };
 
@@ -124,10 +124,10 @@ const DEFAULT_DOCTOR_FORM: DoctorForm = {
   id: "",
   doctor_name: "",
   payout_month: "",
-  amount: "0",
-  paid_amount: "0",
+  amount: "",
+  paid_amount: "",
   paid_date: "",
-  status: "pending",
+  status: "",
   notes: "",
 };
 

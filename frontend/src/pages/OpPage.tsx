@@ -61,10 +61,10 @@ const DEFAULT_SCHEDULE_FORM: ScheduleForm = {
   doctor_name: "",
   department: "",
   schedule_date: "",
-  start_time: "09:00",
-  end_time: "17:00",
-  slot_capacity: "12",
-  status: "available",
+  start_time: "",
+  end_time: "",
+  slot_capacity: "",
+  status: "",
   notes: "",
 };
 
@@ -72,15 +72,15 @@ const DEFAULT_APPOINTMENT_FORM: AppointmentForm = {
   id: "",
   patient_id: "",
   patient_name: "",
-  visit_type: "OP",
+  visit_type: "",
   department: "",
   doctor_name: "",
   appointment_date: "",
-  status: "scheduled",
-  appointment_kind: "new",
+  status: "",
+  appointment_kind: "",
   follow_up_for: "",
-  consultation_fee: "0",
-  payment_mode: "upi",
+  consultation_fee: "",
+  payment_mode: "",
   notes: "",
 };
 
@@ -104,7 +104,7 @@ export default function OpPage({ setNotice, canEdit }: Props) {
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [savingAppointment, setSavingAppointment] = useState(false);
   const [isRazorpayReady, setIsRazorpayReady] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [selectedDate, setSelectedDate] = useState("");
   const [selectedDoctor, setSelectedDoctor] = useState("");
 
   const loadOpDesk = async (date = selectedDate, doctorName = selectedDoctor) => {

@@ -189,14 +189,14 @@ export default function AddPatientPage({ onCreate, selectedPatient, ocrLanguage,
   const EMPTY_APPOINTMENT_FORM = {
     departmentMaster: "",
     search: "",
-    patientType: "New Patient",
+    patientType: "",
     appointmentPatientId: "",
     appointmentPatientName: "",
     appointmentDateTime: "",
     department: "",
     doctor: "",
-    visitType: "OP",
-    appointmentKind: "New",
+    visitType: "",
+    appointmentKind: "",
     chiefComplaint: "",
     bp: "",
     temperature: "",
@@ -205,7 +205,7 @@ export default function AddPatientPage({ onCreate, selectedPatient, ocrLanguage,
     weight: "",
     height: "",
     consultationFee: "",
-    paymentMode: "Cash",
+    paymentMode: "",
     additionalNotes: "",
   };
   const [appointment, setAppointment] = useState(EMPTY_APPOINTMENT_FORM);
@@ -637,7 +637,7 @@ export default function AddPatientPage({ onCreate, selectedPatient, ocrLanguage,
       <div className="appointment-shell">
         <div className="appointment-title-bar">Appointment In</div>
         <div className="panel patient-registration-card appointment-card"><h3>Department Master</h3><Input value={appointment.departmentMaster} onChange={handleAppointmentChange("departmentMaster")} placeholder="Add new department" /><div className="form-actions"><Button variant="secondary" type="button">Add Department</Button></div></div>
-        <div className="panel patient-registration-card appointment-card"><h3>Patient Search & Appointment Intake</h3><Input value={appointment.search} onChange={handleAppointmentChange("search")} placeholder="Search by Patient ID / Mobile / Aadhaar / Name" /><div className="form-actions"><Button variant="secondary" type="button">Search Patient</Button><Button variant="ghost" type="button">New Patient</Button></div></div>
+        <div className="panel patient-registration-card appointment-card"><h3>Patient Search & Appointment Intake</h3><Input value={appointment.search} onChange={handleAppointmentChange("search")} placeholder="Search by Patient ID / Mobile / Aadhaar / Name" /><div className="form-actions"><Button variant="secondary" type="button" onClick={handleSearchPatient}>Search Patient</Button><Button variant="ghost" type="button" onClick={() => setAppointment(EMPTY_APPOINTMENT_FORM)}>New Patient</Button></div></div>
         <div className="panel patient-registration-card appointment-card"><h3>Schedule Appointment</h3><div className="grid-form appointment-grid-form">
           <Label>Patient Type<Select value={appointment.patientType} onChange={handleAppointmentChange("patientType")}><option>New Patient</option><option>Existing Patient</option></Select></Label><Label>Patient ID<Input value={appointment.appointmentPatientId} onChange={handleAppointmentChange("appointmentPatientId")} placeholder="Auto-filled for existing patient" /></Label><Label>Patient Name<Input value={appointment.appointmentPatientName} onChange={handleAppointmentChange("appointmentPatientName")} placeholder="Walk-in or existing patient" /></Label><Label>Appointment Date & Time<Input type="datetime-local" value={appointment.appointmentDateTime} onChange={handleAppointmentChange("appointmentDateTime")} /></Label><Label>Department<Select value={appointment.department} onChange={handleAppointmentChange("department")}><option value="">Select department</option><option>General Medicine</option><option>Pathology</option><option>Cardiology</option><option>Orthopedics</option></Select></Label><Label>Doctor<Input value={appointment.doctor} onChange={handleAppointmentChange("doctor")} placeholder="Type doctor name (guest allowed)" /></Label><Label>Visit Type<Select value={appointment.visitType} onChange={handleAppointmentChange("visitType")}><option>OP</option><option>IP</option><option>Emergency</option></Select></Label><Label>Appointment Kind<Select value={appointment.appointmentKind} onChange={handleAppointmentChange("appointmentKind")}><option>New</option><option>Follow Up</option><option>Review</option></Select></Label><Label className="span-2">Chief Complaint / Reason for Visit<Textarea value={appointment.chiefComplaint} onChange={handleAppointmentChange("chiefComplaint")} rows={3} placeholder="Fever since 3 days, body pains, headache..." /></Label><Label>BP<Input value={appointment.bp} onChange={handleAppointmentChange("bp")} placeholder="120/80" /></Label><Label>Temperature<Input value={appointment.temperature} onChange={handleAppointmentChange("temperature")} placeholder="98.6 F" /></Label><Label>Pulse<Input value={appointment.pulse} onChange={handleAppointmentChange("pulse")} placeholder="72 bpm" /></Label><Label>SPO2<Input value={appointment.spo2} onChange={handleAppointmentChange("spo2")} placeholder="98%" /></Label><Label>Weight (kg)<Input value={appointment.weight} onChange={handleAppointmentChange("weight")} /></Label><Label>Height (cm)<Input value={appointment.height} onChange={handleAppointmentChange("height")} /></Label><Label>Consultation Fee<Input value={appointment.consultationFee} onChange={handleAppointmentChange("consultationFee")} placeholder="0" /></Label><Label>Payment Mode<Select value={appointment.paymentMode} onChange={handleAppointmentChange("paymentMode")}><option>UPI</option><option>Cash</option><option>Card</option><option>Razorpay</option></Select></Label><Label className="span-2">Additional Notes<Textarea value={appointment.additionalNotes} onChange={handleAppointmentChange("additionalNotes")} rows={3} /></Label>
         </div><div className="form-actions appointment-actions"><Button variant="secondary" type="button">Save Appointment & Generate Token</Button><Button variant="primary" type="button">Pay via Razorpay & Schedule</Button><Button variant="ghost" type="button">Print Token</Button></div><p className="muted">Razorpay payments are disabled until backend keys are configured.</p></div>

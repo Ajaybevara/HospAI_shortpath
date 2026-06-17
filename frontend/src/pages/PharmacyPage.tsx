@@ -105,11 +105,11 @@ const DEFAULT_INVENTORY_FORM: InventoryForm = {
   id: "",
   medicine_name: "",
   batch_no: "",
-  quantity: "0",
-  reorder_level: "10",
-  unit_price: "0",
+  quantity: "",
+  reorder_level: "",
+  unit_price: "",
   expiry_date: "",
-  stock_condition: "proper",
+  stock_condition: "",
 };
 
 const DEFAULT_SALE_FORM: SaleForm = {
@@ -117,8 +117,8 @@ const DEFAULT_SALE_FORM: SaleForm = {
   patient_id: "",
   prescription_ref: "",
   medicine_name: "",
-  quantity: "1",
-  unit_price: "0",
+  quantity: "",
+  unit_price: "",
 };
 
 const DEFAULT_SUPPLIER_FORM: SupplierForm = {
@@ -126,16 +126,16 @@ const DEFAULT_SUPPLIER_FORM: SupplierForm = {
   supplier_name: "",
   contact_person: "",
   phone: "",
-  status: "active",
+  status: "",
 };
 
 const DEFAULT_PURCHASE_FORM: PurchaseForm = {
   id: "",
   supplier_id: "",
   medicine_name: "",
-  quantity: "1",
-  unit_cost: "0",
-  status: "ordered",
+  quantity: "",
+  unit_cost: "",
+  status: "",
   expected_date: "",
   received_date: "",
 };
