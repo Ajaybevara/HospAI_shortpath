@@ -69,6 +69,24 @@ const fullName = (patient: Patient | null) => {
   return `${nameStr} (${patient.patient_id})`;
 };
 
+const safeText = (value: unknown) => String(value ?? "-")
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;")
+  .replace(/'/g, "&#039;");
+
+const printField = (label: string, value: unknown) => `
+  <div class="journey-print-field">
+    <span>${safeText(label)}</span>
+    <strong>${safeText(value === "" || value === null || value === undefined ? "-" : value)}</strong>
+  </div>
+`;
+
+const printEmptyRow = (columns: number, message: string) => `
+  <tr><td colspan="${columns}" class="journey-print-empty">${safeText(message)}</td></tr>
+`;
+
 export default function PatientJourneyPage({ setNotice }: Props) {
   const [query, setQuery] = useState("");
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -170,22 +188,279 @@ export default function PatientJourneyPage({ setNotice }: Props) {
       setNotice({ type: "warning", message: "Popup blocked. Allow popups to print the selected patient journey." });
       return;
     }
-    const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
-      .map((node) => node.outerHTML)
-      .join("\n");
+    const patientName = [selectedPatient.name, selectedPatient.middle_name, selectedPatient.last_name].filter(Boolean).join(" ").trim() || selectedPatient.patient_id;
+    const printedAt = new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+    const testRows = diagnostics.length
+      ? diagnostics.map((test) => `
+          <tr>
+            <td>${safeText(compactDate(test.created_at))}</td>
+            <td>${safeText(test.test_name || "-")}</td>
+            <td>${safeText(test.doctor_name || "-")}</td>
+            <td>${safeText(money(test.amount))}</td>
+            <td>${safeText(money(test.paid_amount))}</td>
+            <td>${safeText(money(test.due_amount))}</td>
+            <td>${safeText(test.status || "-")}</td>
+          </tr>
+        `).join("")
+      : printEmptyRow(7, "No lab/test billing found for this patient.");
+    const invoiceRows = invoices.length
+      ? invoices.map((invoice) => `
+          <tr>
+            <td>${safeText(compactDate(invoice.created_at))}</td>
+            <td>${safeText(invoice.invoice_no || invoice.id)}</td>
+            <td>${safeText(invoice.module || "-")}</td>
+            <td>${safeText(money(invoice.total_amount))}</td>
+            <td>${safeText(money(Number(invoice.paid_amount || 0) + Number(invoice.advance_amount || 0)))}</td>
+            <td>${safeText(money(invoice.due_amount))}</td>
+            <td>${safeText(invoice.payment_status || "-")}</td>
+          </tr>
+        `).join("")
+      : printEmptyRow(7, "No invoices found for this patient.");
+    const timelineRows = timeline.length
+      ? timeline.map((item, index) => `
+          <tr>
+            <td>${index + 1}</td>
+            <td>${safeText(compactDate(item.date))}</td>
+            <td>${safeText(item.title)}</td>
+            <td>${safeText(item.detail)}${item.amount ? ` | Amount ${safeText(money(item.amount))}` : ""}</td>
+          </tr>
+        `).join("")
+      : printEmptyRow(4, "No journey events found yet.");
     printWindow.document.write(`
       <!doctype html>
       <html>
         <head>
           <title>${selectedPatient.patient_id} Patient Journey</title>
-          ${styles}
           <style>
-            body { margin: 18px; background: #fff; }
-            .patient-journey-print-area { display: grid; gap: 14px; }
-            .no-print, .journey-search-card { display: none !important; }
+            @page { size: A4; margin: 12mm; }
+            * { box-sizing: border-box; }
+            body {
+              margin: 0;
+              background: #ffffff;
+              color: #111827;
+              font-family: Arial, Helvetica, sans-serif;
+              font-size: 11px;
+            }
+            .journey-print-sheet {
+              width: 100%;
+              min-height: 100vh;
+              padding: 0;
+            }
+            .journey-print-header {
+              display: flex;
+              align-items: flex-start;
+              justify-content: space-between;
+              gap: 18px;
+              margin-bottom: 12px;
+            }
+            .journey-print-brand {
+              display: flex;
+              align-items: center;
+              gap: 10px;
+            }
+            .journey-print-brand img {
+              width: 48px;
+              height: 48px;
+              object-fit: contain;
+            }
+            .journey-print-brand strong {
+              display: block;
+              color: #062f56;
+              font-size: 22px;
+              line-height: 1;
+            }
+            .journey-print-brand span {
+              display: block;
+              margin-top: 4px;
+              color: #475569;
+              font-size: 10px;
+              letter-spacing: 0.04em;
+              text-transform: uppercase;
+            }
+            .journey-print-title {
+              text-align: right;
+              color: #111827;
+            }
+            .journey-print-title h1 {
+              margin: 0 0 5px;
+              font-size: 16px;
+              text-decoration: underline;
+            }
+            .journey-print-title p {
+              margin: 2px 0;
+              color: #475569;
+            }
+            .journey-print-section {
+              border: 1px solid #111827;
+              border-bottom: 0;
+            }
+            .journey-print-section:last-child {
+              border-bottom: 1px solid #111827;
+            }
+            .journey-print-section h2 {
+              margin: 0;
+              padding: 6px 8px;
+              border-bottom: 1px solid #111827;
+              background: #eef7fb;
+              color: #062f56;
+              font-size: 12px;
+              letter-spacing: 0.02em;
+              text-transform: uppercase;
+            }
+            .journey-print-grid {
+              display: grid;
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .journey-print-grid.three {
+              grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+            .journey-print-grid.four {
+              grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
+            .journey-print-field {
+              min-height: 32px;
+              padding: 6px 8px;
+              border-right: 1px solid #111827;
+              border-bottom: 1px solid #111827;
+            }
+            .journey-print-field:nth-child(2n) {
+              border-right: 0;
+            }
+            .journey-print-grid.three .journey-print-field:nth-child(2n),
+            .journey-print-grid.four .journey-print-field:nth-child(2n) {
+              border-right: 1px solid #111827;
+            }
+            .journey-print-grid.three .journey-print-field:nth-child(3n),
+            .journey-print-grid.four .journey-print-field:nth-child(4n) {
+              border-right: 0;
+            }
+            .journey-print-field span {
+              display: block;
+              margin-bottom: 3px;
+              color: #334155;
+              font-size: 9px;
+              font-weight: 700;
+              text-transform: uppercase;
+            }
+            .journey-print-field strong {
+              display: block;
+              min-height: 12px;
+              color: #111827;
+              font-size: 11px;
+            }
+            .journey-print-table {
+              width: 100%;
+              border-collapse: collapse;
+            }
+            .journey-print-table th,
+            .journey-print-table td {
+              padding: 6px 7px;
+              border-right: 1px solid #111827;
+              border-bottom: 1px solid #111827;
+              text-align: left;
+              vertical-align: top;
+            }
+            .journey-print-table th:last-child,
+            .journey-print-table td:last-child {
+              border-right: 0;
+            }
+            .journey-print-table th {
+              background: #f2f8fb;
+              color: #062f56;
+              font-size: 9px;
+              letter-spacing: 0.05em;
+              text-transform: uppercase;
+            }
+            .journey-print-empty {
+              color: #64748b;
+              text-align: center !important;
+            }
+            .journey-print-signatures {
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              gap: 18px;
+              margin-top: 22px;
+            }
+            .journey-print-signatures div {
+              padding-top: 22px;
+              border-top: 1px solid #111827;
+              text-align: center;
+              font-weight: 700;
+            }
           </style>
         </head>
-        <body>${journeyPrintRef.current.innerHTML}</body>
+        <body>
+          <main class="journey-print-sheet">
+            <header class="journey-print-header">
+              <div class="journey-print-brand">
+                <img src="/logo.png" alt="HospAI logo" />
+                <div>
+                  <strong>HospAI</strong>
+                  <span>Smart Hospital Management</span>
+                </div>
+              </div>
+              <div class="journey-print-title">
+                <h1>Patient Journey Report</h1>
+                <p><strong>UHID:</strong> ${safeText(selectedPatient.patient_id)}</p>
+                <p><strong>Printed:</strong> ${safeText(printedAt)}</p>
+              </div>
+            </header>
+
+            <section class="journey-print-section">
+              <h2>Patient Information</h2>
+              <div class="journey-print-grid">
+                ${printField("Patient Name", patientName)}
+                ${printField("UHID / Patient ID", selectedPatient.patient_id)}
+                ${printField("Mobile", selectedPatient.phone || "-")}
+                ${printField("Age / Gender", `${selectedPatient.age || "-"} / ${selectedPatient.gender || "-"}`)}
+                ${printField("Address", selectedPatient.address || "-")}
+                ${printField("Allergies", selectedPatient.allergies || "-")}
+                ${printField("Emergency Contact", `${selectedPatient.emergency_contact || "-"}${selectedPatient.emergency_relation ? ` (${selectedPatient.emergency_relation})` : ""}`)}
+                ${printField("Family Mobile", selectedPatient.family_mobile || "-")}
+              </div>
+            </section>
+
+            <section class="journey-print-section">
+              <h2>Journey Summary</h2>
+              <div class="journey-print-grid four">
+                ${printField("Total Billed", money(totals.billed))}
+                ${printField("Total Paid", money(totals.paid))}
+                ${printField("Total Due", money(totals.due))}
+                ${printField("Visits / Tests", `${totals.visits} / ${totals.tests}`)}
+              </div>
+            </section>
+
+            <section class="journey-print-section">
+              <h2>Test-wise Payment Details</h2>
+              <table class="journey-print-table">
+                <thead><tr><th>Date</th><th>Test</th><th>Doctor</th><th>Bill</th><th>Paid</th><th>Due</th><th>Status</th></tr></thead>
+                <tbody>${testRows}</tbody>
+              </table>
+            </section>
+
+            <section class="journey-print-section">
+              <h2>Invoices & Transactions</h2>
+              <table class="journey-print-table">
+                <thead><tr><th>Date</th><th>Invoice</th><th>Module</th><th>Total</th><th>Paid/Advance</th><th>Due</th><th>Status</th></tr></thead>
+                <tbody>${invoiceRows}</tbody>
+              </table>
+            </section>
+
+            <section class="journey-print-section">
+              <h2>Complete Journey Timeline</h2>
+              <table class="journey-print-table">
+                <thead><tr><th>#</th><th>Date</th><th>Event</th><th>Details</th></tr></thead>
+                <tbody>${timelineRows}</tbody>
+              </table>
+            </section>
+
+            <div class="journey-print-signatures">
+              <div>Patient / Guardian</div>
+              <div>Prepared By</div>
+              <div>Authorized Signatory</div>
+            </div>
+          </main>
+        </body>
       </html>
     `);
     printWindow.document.close();

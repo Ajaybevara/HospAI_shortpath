@@ -29,6 +29,21 @@ type Props = {
 type OcrResultMap = Record<string, { text?: string; file?: File }>;
 
 const IMAGE_NAME_PATTERN = /\.(png|jpe?g|webp|bmp|gif|tiff?|heic|heif)$/i;
+const ACTIVE_READMIT_STATUSES = new Set(["In Queue", "In Consultation", "Yet to Come"]);
+
+function getStoredReadmitQueue() {
+  try {
+    const storedQueue = JSON.parse(localStorage.getItem("hospai_op_queue") || "[]");
+    return Array.isArray(storedQueue) ? storedQueue : [];
+  } catch {
+    return [];
+  }
+}
+
+function getActiveReadmitEntry(patientId?: string) {
+  if (!patientId) return null;
+  return getStoredReadmitQueue().find((item) => item?.uhid === patientId && ACTIVE_READMIT_STATUSES.has(String(item?.status || ""))) || null;
+}
 
 function OriginalDocumentPreview({ file }: { file?: File }) {
   const [url, setUrl] = useState<string | null>(null);
@@ -243,6 +258,14 @@ export default function ReadmitPage({ onSelect, setNotice, onReadmitComplete, oc
 
   const handleReadmit = async () => {
     if (!activePatient) return;
+    const activeQueueEntry = getActiveReadmitEntry(activePatient.patient_id);
+    if (activeQueueEntry) {
+      setNotice({
+        type: "warning",
+        message: `${activePatient.patient_id} is already in OP Queue Management (${activeQueueEntry.status}). Complete the previous OP before re-admitting again.`,
+      });
+      return;
+    }
     setSubmitting(true);
     try {
       const numberOrNull = (value: number | string) => {
@@ -282,10 +305,8 @@ export default function ReadmitPage({ onSelect, setNotice, onReadmitComplete, oc
         admissionId: data.admission_id,
         createdAt: new Date().toISOString(),
       };
-      const storedQueue = JSON.parse(localStorage.getItem("hospai_op_queue") || "[]");
-      const withoutDuplicate = Array.isArray(storedQueue)
-        ? storedQueue.filter((item) => item?.uhid !== queueEntry.uhid || item?.status === "Completed")
-        : [];
+      const storedQueue = getStoredReadmitQueue();
+      const withoutDuplicate = storedQueue.filter((item) => item?.uhid !== queueEntry.uhid || item?.status === "Completed");
       localStorage.setItem("hospai_op_queue", JSON.stringify([queueEntry, ...withoutDuplicate]));
 
       setNotice({
@@ -410,10 +431,18 @@ export default function ReadmitPage({ onSelect, setNotice, onReadmitComplete, oc
                       </div>
 
                       <div className="queue-note">
-                        After confirmation, this patient will be added directly to <b>OP Queue Management</b> with visit type <b>Readmission</b>.
+                        {getActiveReadmitEntry(activePatient.patient_id) ? (
+                          <>
+                            This patient is already in <b>OP Queue Management</b>. Complete the active OP token before re-admitting again.
+                          </>
+                        ) : (
+                          <>
+                            After confirmation, this patient will be added directly to <b>OP Queue Management</b> with visit type <b>Readmission</b>.
+                          </>
+                        )}
                       </div>
 
-                      <Button variant="primary" onClick={() => void handleReadmit()} disabled={submitting}>
+                      <Button variant="primary" onClick={() => void handleReadmit()} disabled={submitting || Boolean(getActiveReadmitEntry(activePatient.patient_id))}>
                         {submitting ? "Submitting..." : "Confirm Re-admission"}
                       </Button>
                     </div>

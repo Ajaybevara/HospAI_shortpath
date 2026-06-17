@@ -257,7 +257,11 @@ export default function RegistrationDeskPage({ mode, selectedPatient, setNotice 
     setPatientSearchLoading(true);
     try {
       const data = await apiFetch<{ patients?: Patient[] }>(`/api/patients?q=${encodeURIComponent(query)}`);
-      const results = data.patients || [];
+      let results = data.patients || [];
+      if (!results.length && /^\d{3,4}$/.test(query)) {
+        const allData = await apiFetch<{ patients?: Patient[] }>("/api/patients");
+        results = (allData.patients || []).filter((patient) => String(patient.patient_id || "").slice(-4) === query);
+      }
       setPatientResults(results);
       const normalizedQuery = query.toLowerCase();
       const exactPatient = results.find((patient) => {

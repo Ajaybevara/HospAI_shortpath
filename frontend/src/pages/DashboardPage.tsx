@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui";
 import { API_BASE } from "../lib/constants";
 import { getHospitalCode } from "../lib/api";
 import { downloadExportBlob, filenameFromContentDisposition, shareOrDownloadExport } from "../lib/exportShare";
-import type { DashboardAnalytics, DistributionItem, HospitalSummary, Patient, Stats, Alert } from "../types";
+import type { DashboardAnalytics, DistributionItem, HospitalSummary, Patient, Stats, Alert, User } from "../types";
 
 type Props = {
   stats: Stats;
@@ -13,6 +13,8 @@ type Props = {
   analyticsLoading: boolean;
   onNavigate: (page: string) => void;
   alerts: Alert[];
+  user: User | null;
+  onLogout: () => void;
 };
 
 function formatCurrency(amount?: number) {
@@ -24,6 +26,33 @@ function formatCurrencyShort(amount?: number) {
   if (val >= 100000) return `₹${(val / 100000).toFixed(2)}L`;
   if (val >= 1000) return `₹${(val / 1000).toFixed(1)}K`;
   return `₹${val}`;
+}
+
+const dashboardMonthNames = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const dashboardWeekdays = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+
+function toIsoDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseIsoDate(value: string) {
+  return new Date(`${value}T00:00:00`);
 }
 
 // ── Top KPI cards ────────────────────────────────────────────────────────────
@@ -209,9 +238,75 @@ export default function DashboardPage({
   analyticsLoading,
   onNavigate,
   alerts,
+  user,
+  onLogout,
 }: Props) {
   const [exportStatus, setExportStatus] = useState<"" | "print" | "export">("");
-  const currentDateLabel = new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(new Date());
+  const todayIso = toIsoDate(new Date());
+  const [dashboardDate, setDashboardDate] = useState(todayIso);
+  const [pendingDashboardDate, setPendingDashboardDate] = useState(todayIso);
+  const [calendarMonth, setCalendarMonth] = useState(parseIsoDate(todayIso).getMonth());
+  const [calendarYear, setCalendarYear] = useState(parseIsoDate(todayIso).getFullYear());
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const calendarRef = useRef<HTMLDivElement | null>(null);
+  const dashboardProfileRef = useRef<HTMLDivElement | null>(null);
+  const currentDateLabel = new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(parseIsoDate(dashboardDate));
+  const pendingDateLabel = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(parseIsoDate(pendingDashboardDate));
+  const calendarYears = useMemo(() => {
+    const baseYear = new Date().getFullYear();
+    return Array.from({ length: 9 }, (_, index) => baseYear - 4 + index);
+  }, []);
+  const calendarDays = useMemo(() => {
+    const first = new Date(calendarYear, calendarMonth, 1);
+    const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+    const previousMonthDays = new Date(calendarYear, calendarMonth, 0).getDate();
+    const cells: { date: Date; inMonth: boolean }[] = [];
+
+    for (let index = first.getDay() - 1; index >= 0; index -= 1) {
+      cells.push({ date: new Date(calendarYear, calendarMonth - 1, previousMonthDays - index), inMonth: false });
+    }
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      cells.push({ date: new Date(calendarYear, calendarMonth, day), inMonth: true });
+    }
+    while (cells.length % 7 !== 0) {
+      const nextDay = cells.length - first.getDay() - daysInMonth + 1;
+      cells.push({ date: new Date(calendarYear, calendarMonth + 1, nextDay), inMonth: false });
+    }
+    return cells;
+  }, [calendarMonth, calendarYear]);
+
+  useEffect(() => {
+    const closeOverlays = (event: MouseEvent) => {
+      if (calendarRef.current && !calendarRef.current.contains(event.target as Node)) {
+        setCalendarOpen(false);
+      }
+      if (dashboardProfileRef.current && !dashboardProfileRef.current.contains(event.target as Node)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", closeOverlays);
+    return () => document.removeEventListener("mousedown", closeOverlays);
+  }, []);
+
+  const openDashboardCalendar = () => {
+    const selected = parseIsoDate(dashboardDate);
+    setPendingDashboardDate(dashboardDate);
+    setCalendarMonth(selected.getMonth());
+    setCalendarYear(selected.getFullYear());
+    setCalendarOpen((open) => !open);
+  };
+
+  const selectCalendarDay = (date: Date) => {
+    setPendingDashboardDate(toIsoDate(date));
+    setCalendarMonth(date.getMonth());
+    setCalendarYear(date.getFullYear());
+  };
+
+  const confirmDashboardCalendar = () => {
+    setDashboardDate(pendingDashboardDate);
+    setCalendarOpen(false);
+  };
 
   const go = (page: string) => onNavigate(page);
 
@@ -318,30 +413,27 @@ export default function DashboardPage({
   const diagIncome = hospitalSummary?.diagnostics_summary?.monthly_income || 0;
   const paymentModes = hospitalSummary?.revenue?.payment_mode_breakdown || [];
 
-  // Fake bed occupancy derived from stats (use active admissions / 250 beds)
   const totalBeds = 250;
   const occupiedBeds = Math.min(stats.active_admissions || 0, totalBeds);
   const availableBeds = totalBeds - occupiedBeds;
   const bedPct = Math.round((occupiedBeds / totalBeds) * 100);
 
-  // OP queue mock data based on dailyOp
   const opWaiting = Math.round(dailyOp * 0.05);
   const opInConsult = Math.round(dailyOp * 0.06);
-  const opCompleted = dailyOp - opWaiting - opInConsult;
+  const opCompleted = Math.max(dailyOp - opWaiting - opInConsult, 0);
   const opTotal = opWaiting + opInConsult + opCompleted;
 
   const queueSegments = [
-    { color: "#3b82f6", pct: opTotal ? Math.round((opWaiting / opTotal) * 100) : 37, label: "Waiting", count: opWaiting || 12 },
-    { color: "#f59e0b", pct: opTotal ? Math.round((opInConsult / opTotal) * 100) : 44, label: "In Consultation", count: opInConsult || 14 },
-    { color: "#10b981", pct: opTotal ? Math.round((opCompleted / opTotal) * 100) : 19, label: "Completed", count: opCompleted || 6 },
+    { color: "#3b82f6", pct: opTotal ? Math.round((opWaiting / opTotal) * 100) : 0, label: "Waiting", count: opWaiting },
+    { color: "#f59e0b", pct: opTotal ? Math.round((opInConsult / opTotal) * 100) : 0, label: "In Consultation", count: opInConsult },
+    { color: "#10b981", pct: opTotal ? Math.round((opCompleted / opTotal) * 100) : 0, label: "Completed", count: opCompleted },
   ];
-  const queueTotal = opTotal || 32;
+  const queueTotal = opTotal;
 
-  // Revenue breakdown
   const opdRev = totalRevenue * 0.51;
   const labRev = totalRevenue * 0.29;
-  const pharmRev = pharmSales || totalRevenue * 0.17;
-  const ipdRev = dailyIp * 500;
+  const pharmRev = pharmSales;
+  const ipdRev = 0;
   const otherRev = Math.max(0, totalRevenue - opdRev - labRev - pharmRev - ipdRev);
 
   // Payment mix
@@ -350,15 +442,14 @@ export default function DashboardPage({
   const upiAmt = paymentModes.find((p) => /upi/i.test(p.label))?.count || 0;
   const netAmt = paymentModes.find((p) => /net|online/i.test(p.label))?.count || 0;
 
-  // Today's operations table
   const ops = [
-    { module: "OP Patients", icon: "🏥", count: dailyOp || 248, completed: Math.round((dailyOp || 248) * 0.75), pending: Math.round((dailyOp || 248) * 0.05) },
-    { module: "IP Patients", icon: "🛏️", count: dailyIp || 36, completed: Math.round((dailyIp || 36) * 0.28), pending: Math.round((dailyIp || 36) * 0.72) },
-    { module: "Lab Tests", icon: "🧪", count: 125, completed: 96, pending: 12 },
-    { module: "Lab Reports", icon: "📋", count: 108, completed: 96, pending: 12 },
-    { module: "Pharmacy Bills", icon: "💊", count: 78, completed: 70, pending: 8 },
-    { module: "Prescriptions", icon: "📝", count: 212, completed: 180, pending: 32 },
-    { module: "Follow Ups", icon: "🔄", count: 45, completed: 20, pending: 25 },
+    { module: "OP Patients", icon: "🏥", count: dailyOp, completed: opCompleted, pending: opWaiting },
+    { module: "IP Patients", icon: "🛏️", count: dailyIp, completed: 0, pending: dailyIp },
+    { module: "Lab Tests", icon: "🧪", count: 0, completed: 0, pending: 0 },
+    { module: "Lab Reports", icon: "📋", count: stats.documents || 0, completed: 0, pending: stats.documents || 0 },
+    { module: "Pharmacy Bills", icon: "💊", count: 0, completed: 0, pending: 0 },
+    { module: "Prescriptions", icon: "📝", count: 0, completed: 0, pending: 0 },
+    { module: "Follow Ups", icon: "🔄", count: 0, completed: 0, pending: 0 },
   ];
 
   const operationTarget = (module: string) => {
@@ -371,13 +462,12 @@ export default function DashboardPage({
     return "reports";
   };
 
-  // AI insights
   const insights = [
-    { icon: "📈", text: `Today's registrations increased by ${stats.today > 0 ? "15.21%" : "0%"} compared to yesterday.` },
-    { icon: "🧪", text: `Lab revenue is ${labRev > 0 ? ((labRev / totalRevenue) * 100).toFixed(1) : "28.9"}% of total revenue this week.` },
-    { icon: "📋", text: `${stats.documents || 12} lab reports are pending verification.` },
-    { icon: "🛏️", text: `Bed occupancy is above ${bedPct}%. Consider discharging some patients.` },
-    { icon: "🔄", text: `5 follow up appointments scheduled for today.` },
+    { icon: "📈", text: `Today's registrations: ${stats.today || 0}.` },
+    { icon: "🧪", text: `Lab revenue is ${totalRevenue > 0 ? ((labRev / totalRevenue) * 100).toFixed(1) : "0"}% of total revenue.` },
+    { icon: "📋", text: `${stats.documents || 0} lab/document reports are pending verification.` },
+    { icon: "🛏️", text: `Bed occupancy is ${bedPct}%.` },
+    { icon: "🔄", text: "Follow up appointments scheduled today: 0." },
   ];
 
   return (
@@ -388,10 +478,67 @@ export default function DashboardPage({
           <p className="hosp-dashboard-page-subtitle">Overview of your clinic performance</p>
         </div>
         <div className="hosp-dashboard-top-actions">
-          <button type="button" className="hosp-dashboard-pill hosp-dashboard-date-pill">
-            <span className="hosp-dashboard-action-icon">🗓️</span>
-            <span>{currentDateLabel}</span>
-          </button>
+          <div className="hosp-dashboard-calendar-wrap" ref={calendarRef}>
+            <button
+              type="button"
+              className={`hosp-dashboard-pill hosp-dashboard-date-pill ${calendarOpen ? "active" : ""}`}
+              onClick={openDashboardCalendar}
+              aria-expanded={calendarOpen}
+              aria-haspopup="dialog"
+            >
+              <span className="hosp-dashboard-action-icon">🗓️</span>
+              <span>{currentDateLabel}</span>
+            </button>
+            {calendarOpen && (
+              <div className="hosp-dashboard-calendar-popover" role="dialog" aria-label="Dashboard calendar" onMouseDown={(event) => event.stopPropagation()}>
+                <div className="hosp-dashboard-calendar-selected">
+                  <strong>{pendingDateLabel}</strong>
+                  <span>✎</span>
+                </div>
+                <div className="hosp-dashboard-calendar-selects">
+                  <select
+                    value={calendarMonth}
+                    onChange={(event) => setCalendarMonth(Number(event.target.value))}
+                    aria-label="Calendar month"
+                  >
+                    {dashboardMonthNames.map((month, index) => (
+                      <option key={month} value={index}>{month}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={calendarYear}
+                    onChange={(event) => setCalendarYear(Number(event.target.value))}
+                    aria-label="Calendar year"
+                  >
+                    {calendarYears.map((year) => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="hosp-dashboard-calendar-grid">
+                  {dashboardWeekdays.map((day) => <span key={day} className="calendar-weekday">{day}</span>)}
+                  {calendarDays.map(({ date, inMonth }) => {
+                    const iso = toIsoDate(date);
+                    const selected = iso === pendingDashboardDate;
+                    return (
+                      <button
+                        key={iso}
+                        type="button"
+                        className={`${inMonth ? "" : "muted"} ${selected ? "selected" : ""}`}
+                        onClick={() => selectCalendarDay(date)}
+                      >
+                        {String(date.getDate()).padStart(2, "0")}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="hosp-dashboard-calendar-actions">
+                  <button type="button" onClick={() => setCalendarOpen(false)}>Cancel</button>
+                  <button type="button" onClick={confirmDashboardCalendar}>Confirm</button>
+                </div>
+              </div>
+            )}
+          </div>
           <button type="button" className="hosp-dashboard-icon-btn" onClick={() => void handlePrintDashboardPdf()} disabled={exportStatus !== ""}>
             <span className="hosp-dashboard-action-icon">🖨️</span>
             <span>{exportStatus === "print" ? "Preparing..." : "Print"}</span>
@@ -404,14 +551,26 @@ export default function DashboardPage({
             <span className="hosp-dashboard-alert-icon">🔔</span>
             <span className="hosp-dashboard-badge">{alerts.filter(a => !a.read).length}</span>
           </button>
-          <button type="button" className="hosp-dashboard-user" onClick={() => go("admin")}>
-            <span className="hosp-dashboard-avatar">AD</span>
-            <div>
-              <p className="hosp-dashboard-user-name">Dr. Admin</p>
-              <p className="hosp-dashboard-user-role">Administrator</p>
-            </div>
-            <span className="hosp-dashboard-user-caret">⌄</span>
-          </button>
+          <div className="hosp-dashboard-profile-wrap" ref={dashboardProfileRef}>
+            <button type="button" className="hosp-dashboard-user" onClick={() => setProfileOpen((open) => !open)} aria-expanded={profileOpen} aria-haspopup="menu">
+              <span className="hosp-dashboard-avatar">{(user?.full_name || user?.username || "U").slice(0, 2).toUpperCase()}</span>
+              <div>
+                <p className="hosp-dashboard-user-name">{user?.full_name || user?.username || "User"}</p>
+                <p className="hosp-dashboard-user-role">{user?.user_type === "admin" || user?.role === "admin" ? "Administrator" : "Employee"}</p>
+              </div>
+              <span className="hosp-dashboard-user-caret">⌄</span>
+            </button>
+            {profileOpen && (
+              <div className="hosp-dashboard-profile-menu" role="menu">
+                <button type="button" disabled>
+                  {user?.full_name || user?.username || "Signed in user"}
+                </button>
+                <button type="button" className="danger" onClick={onLogout}>
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
       {/* KPI Row */}
@@ -419,48 +578,43 @@ export default function DashboardPage({
         <KpiCard
           icon={<svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
           label="Today's Registrations"
-          value={stats.today || 284}
-          trend={{ value: "15.21% vs Yesterday", up: true }}
+          value={stats.today || 0}
           iconBg="linear-gradient(135deg,#6366f1,#8b5cf6)"
           onClick={() => go("add")}
         />
         <KpiCard
           icon={<svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>}
           label="OP Queue Waiting"
-          value={opWaiting || 12}
-          trend={{ value: "20.00% vs Yesterday", up: true }}
+          value={opWaiting}
           iconBg="linear-gradient(135deg,#06b6d4,#0891b2)"
           onClick={() => go("op-queue-management")}
         />
         <KpiCard
           icon={<svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>}
           label="Today's Revenue"
-          value={formatCurrencyShort(totalRevenue || 635000)}
-          trend={{ value: "18.42% vs Yesterday", up: true }}
+          value={formatCurrencyShort(totalRevenue)}
           iconBg="linear-gradient(135deg,#f59e0b,#d97706)"
           onClick={() => go("billing-invoices")}
         />
         <KpiCard
           icon={<svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>}
           label="Bed Occupancy"
-          value={`${bedPct || 82}%`}
-          sub={`${occupiedBeds || 205} / ${totalBeds} Beds`}
+          value={`${bedPct}%`}
+          sub={`${occupiedBeds} / ${totalBeds} Beds`}
           iconBg="linear-gradient(135deg,#f97316,#ea580c)"
           onClick={() => go("patients")}
         />
         <KpiCard
           icon={<svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>}
           label="Pending Lab Reports"
-          value={stats.documents || 12}
-          trend={{ value: "9.09% vs Yesterday", up: true }}
+          value={stats.documents || 0}
           iconBg="linear-gradient(135deg,#3b82f6,#2563eb)"
           onClick={() => go("lab")}
         />
         <KpiCard
           icon={<svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-8 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>}
           label="Pharmacy Pending Bills"
-          value={8}
-          trend={{ value: "11.11% vs Yesterday", up: false }}
+          value={0}
           iconBg="linear-gradient(135deg,#ec4899,#db2777)"
           onClick={() => go("pharmacy")}
         />
@@ -566,10 +720,10 @@ export default function DashboardPage({
           <CardContent>
             <div className="hosp-rev-list">
               {[
-                { label: "OPD Revenue", icon: "🏥", value: opdRev || 325000 },
-                { label: "Lab Revenue", icon: "🧪", value: labRev || 185000 },
-                { label: "Pharmacy Revenue", icon: "💊", value: pharmRev || 105000 },
-                { label: "IPD Revenue", icon: "🛏️", value: ipdRev || 20000 },
+                { label: "OPD Revenue", icon: "🏥", value: opdRev },
+                { label: "Lab Revenue", icon: "🧪", value: labRev },
+                { label: "Pharmacy Revenue", icon: "💊", value: pharmRev },
+                { label: "IPD Revenue", icon: "🛏️", value: ipdRev },
                 { label: "Other Revenue", icon: "📊", value: otherRev || 0 },
               ].map((row) => (
                 <button key={row.label} type="button" className="hosp-rev-row hosp-table-click" onClick={() => go(row.label.includes("Lab") ? "lab" : row.label.includes("Pharmacy") ? "pharmacy" : row.label.includes("IPD") ? "patients" : "billing-invoices")}>
@@ -581,11 +735,11 @@ export default function DashboardPage({
             </div>
             <div className="hosp-rev-total-row">
               <span>Total Revenue</span>
-              <span>{formatCurrencyShort(totalRevenue || 635000)}</span>
+              <span>{formatCurrencyShort(totalRevenue)}</span>
             </div>
             <div className="hosp-rev-due-row">
               <span>Outstanding Amount</span>
-              <span style={{ color: "#dc2626" }}>{formatCurrencyShort(dueRevenue || 235600)}</span>
+              <span style={{ color: "#dc2626" }}>{formatCurrencyShort(dueRevenue)}</span>
             </div>
           </CardContent>
         </Card>
@@ -621,23 +775,23 @@ export default function DashboardPage({
           <CardContent>
             <div className="hosp-bed-layout">
               <CircleGauge
-                pct={bedPct || 82}
+                pct={bedPct}
                 color="#10b981"
                 label="Occupied"
-                center={`${bedPct || 82}%`}
+                center={`${bedPct}%`}
               />
               <div className="hosp-bed-stats">
                 <div className="hosp-bed-stat-row">
                   <span>Total Beds</span><strong>{totalBeds}</strong>
                 </div>
                 <div className="hosp-bed-stat-row">
-                  <span>Occupied Beds</span><strong>{occupiedBeds || 205}</strong>
+                  <span>Occupied Beds</span><strong>{occupiedBeds}</strong>
                 </div>
                 <div className="hosp-bed-stat-row">
-                  <span>Available Beds</span><strong>{availableBeds || 45}</strong>
+                  <span>Available Beds</span><strong>{availableBeds}</strong>
                 </div>
                 <div className="hosp-bed-stat-row icu">
-                  <span>ICU Occupancy</span><strong style={{ color: "#ef4444" }}>92%</strong>
+                  <span>ICU Occupancy</span><strong style={{ color: "#ef4444" }}>0%</strong>
                 </div>
               </div>
             </div>
@@ -653,10 +807,10 @@ export default function DashboardPage({
           <CardContent>
             <div className="hosp-pay-list">
               {[
-                { label: "Cash", icon: "💵", value: cashAmt || 242000 },
-                { label: "Card", icon: "💳", value: cardAmt || 215000 },
-                { label: "UPI", icon: "📱", value: upiAmt || 138000 },
-                { label: "Net Banking", icon: "🌐", value: netAmt || 40000 },
+                { label: "Cash", icon: "💵", value: cashAmt },
+                { label: "Card", icon: "💳", value: cardAmt },
+                { label: "UPI", icon: "📱", value: upiAmt },
+                { label: "Net Banking", icon: "🌐", value: netAmt },
               ].map((row) => (
                 <button key={row.label} type="button" className="hosp-pay-row hosp-table-click" onClick={() => go("billing-record-payment")}>
                   <span className="hosp-pay-icon">{row.icon}</span>
@@ -667,7 +821,7 @@ export default function DashboardPage({
             </div>
             <div className="hosp-pay-total-row">
               <span>Total Collected</span>
-              <span style={{ color: "#0891b2", fontWeight: 700 }}>{formatCurrencyShort(totalRevenue || 635000)}</span>
+              <span style={{ color: "#0891b2", fontWeight: 700 }}>{formatCurrencyShort(totalRevenue)}</span>
             </div>
           </CardContent>
         </Card>

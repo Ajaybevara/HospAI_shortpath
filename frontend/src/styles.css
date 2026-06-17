@@ -4057,12 +4057,6 @@ main {
 .print-slip-card { background:#fffbeb; }
 .print-slip-grid { display:grid; grid-template-columns:1fr 1.4fr auto; align-items:end; gap:18px; }
 .queue-note { background:#eff6ff; border:1px solid #dbeafe; border-radius:8px; padding:14px 18px; color:#2563eb; }
-.op-queue-page .clinical-panel,
-.op-queue-page .queue-actions-card,
-.op-queue-page .print-slip-card,
-.op-queue-page .queue-note {
-  display: none;
-}
 .readmit-results-table .table-head,
 .readmit-results-table .table-row {
   grid-template-columns: minmax(180px, 1.35fr) minmax(170px, 1.15fr) minmax(58px, 0.42fr) minmax(82px, 0.6fr) minmax(120px, 0.85fr) minmax(190px, 1.2fr) minmax(120px, 0.72fr);
@@ -4137,6 +4131,151 @@ main {
   padding-right: 0.85rem;
 }
 
+.hosp-dashboard-calendar-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.hosp-dashboard-date-pill.active {
+  border-color: #b7d8e6;
+  box-shadow: 0 8px 22px rgba(8, 145, 178, 0.14);
+}
+
+.hosp-dashboard-calendar-popover {
+  position: absolute;
+  top: calc(100% + 0.55rem);
+  right: 0;
+  z-index: 30;
+  width: min(460px, calc(100vw - 2rem));
+  padding: 1.05rem;
+  border: 1px solid #e8eef4;
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 22px 54px rgba(15, 23, 42, 0.16);
+}
+
+.hosp-dashboard-calendar-popover::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  right: 28px;
+  width: 12px;
+  height: 12px;
+  border-left: 1px solid #d8e8f1;
+  border-top: 1px solid #d8e8f1;
+  background: #ffffff;
+  transform: rotate(45deg);
+}
+
+.hosp-dashboard-calendar-selected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 52px;
+  margin-bottom: 1rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 18px;
+  background: #f8fafc;
+  color: #2b2f36;
+  font-size: 1.05rem;
+  box-shadow: inset 0 0 0 1px #edf2f7;
+}
+
+.hosp-dashboard-calendar-selected span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: #14a6d3;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(20, 166, 211, 0.28);
+}
+
+.hosp-dashboard-calendar-selects {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.hosp-dashboard-calendar-selects select {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid #e5edf3;
+  border-radius: 12px;
+  background: #f7f7f7;
+  color: #2b2f36;
+  font-size: 0.95rem;
+  font-weight: 800;
+  padding: 0 0.85rem;
+  outline: none;
+}
+
+.hosp-dashboard-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.25rem 0.4rem;
+  text-align: center;
+}
+
+.hosp-dashboard-calendar-grid .calendar-weekday {
+  color: #2f3742;
+  font-size: 0.72rem;
+  font-weight: 900;
+  padding: 0.45rem 0;
+}
+
+.hosp-dashboard-calendar-grid button {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #2b2f36;
+  font-size: 0.82rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.hosp-dashboard-calendar-grid button.muted {
+  color: #c0c6cc;
+}
+
+.hosp-dashboard-calendar-grid button.selected {
+  background: #14a6d3;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(20, 166, 211, 0.28);
+}
+
+.hosp-dashboard-calendar-grid button:hover:not(.selected) {
+  background: #eef8fc;
+}
+
+.hosp-dashboard-calendar-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.hosp-dashboard-calendar-actions button {
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #8a929b;
+  font-size: 0.9rem;
+  font-weight: 800;
+  padding: 0.7rem 0.65rem;
+  cursor: pointer;
+}
+
+.hosp-dashboard-calendar-actions button:last-child {
+  color: #14a6d3;
+}
+
 .hosp-dashboard-action-icon {
   font-size: 0.82rem;
   line-height: 1;
@@ -4201,6 +4340,53 @@ main {
   margin-left: 0.05rem;
   color: #94a3b8;
   font-size: 0.9rem;
+}
+
+.hosp-dashboard-profile-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.hosp-dashboard-profile-menu {
+  position: absolute;
+  top: calc(100% + 0.55rem);
+  right: 0;
+  z-index: 35;
+  min-width: 168px;
+  padding: 0.45rem;
+  border: 1px solid #d8e8f1;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.14);
+  display: grid;
+  gap: 0.25rem;
+}
+
+.hosp-dashboard-profile-menu button {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #0f172a;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 0.62rem 0.75rem;
+  text-align: left;
+}
+
+.hosp-dashboard-profile-menu button:hover:not(:disabled) {
+  background: #eef7fb;
+}
+
+.hosp-dashboard-profile-menu button.danger {
+  color: #a8263a;
+}
+
+.hosp-dashboard-profile-menu button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 /* Dashboard navigation fixes: keep clickable cards looking like the desktop EXE UI */
