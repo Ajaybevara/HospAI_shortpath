@@ -3,6 +3,8 @@ import type { Dispatch, SetStateAction } from "react";
 import { Button, Input, Label, Select, Textarea } from "../components/ui";
 import type { Notice } from "../types";
 import { fullPatientName, lookupPatientByUhid, normalizeUhidLookup } from "../lib/patientLookup";
+import { API_BASE } from "../lib/constants";
+import { getHospitalCode } from "../lib/api";
 
 type Props = { setNotice: Dispatch<SetStateAction<Notice | null>>; view: "prescription" | "ip-admission" | "nurse-station" | "discharge-summary" };
 
@@ -71,6 +73,76 @@ export default function PatientWorkflowPage({ setNotice, view }: Props) {
     setSavedRows(loadLocal(`hospai_${view}`));
     setNotice({ type: "success", message: `${title} saved successfully.` });
   };
+  const buildPdfMarkdown = () => {
+    if (view === "prescription") {
+      return [
+        "## Patient Details",
+        `Patient ID: ${form.patient_id || "-"}`,
+        `Patient Name: ${form.patient_name || "-"}`,
+        `Doctor: ${form.doctor_name || "-"}`,
+        `Department: ${form.department || "-"}`,
+        "## Clinical Notes",
+        form.diagnosis || "-",
+        "## Medicines",
+        form.medicines || "-",
+        "## Investigations / Lab Tests",
+        form.lab_tests || "-",
+        "## Advice",
+        form.advice || "-",
+        "## Follow-up",
+        `Follow-up Date: ${form.follow_up_date || "-"}`,
+      ].join("\n");
+    }
+    if (view === "discharge-summary") {
+      return [
+        "## Patient Information",
+        `Patient ID: ${form.patient_id || "-"}`,
+        `Patient Name: ${form.patient_name || "-"}`,
+        `Admission Date: ${form.admission_date || "-"}`,
+        `Discharge Date: ${form.discharge_date || "-"}`,
+        `Discharge Status: ${form.status || "-"}`,
+        `Billing Clearance: ${form.billing_clearance || "-"}`,
+        "## Final Diagnosis",
+        form.final_diagnosis || "-",
+        "## Treatment Summary",
+        form.treatment_summary || "-",
+        "## Discharge Medications",
+        form.discharge_medicines || "-",
+        "## Follow-up Instructions",
+        form.follow_up_plan || "-",
+      ].join("\n");
+    }
+    return Object.entries(form).map(([key, value]) => `${key.replace(/_/g, " ")}: ${value || "-"}`).join("\n");
+  };
+  const downloadPdf = async () => {
+    if (!form.patient_name.trim()) {
+      setNotice({ type: "warning", message: "Patient name is required before PDF download." });
+      return;
+    }
+    try {
+      const response = await fetch(`${API_BASE}/api/export/pdf`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "X-Hospital-Code": getHospitalCode() },
+        body: JSON.stringify({
+          patient_name: form.patient_name || form.patient_id || "Patient",
+          doc_type: view,
+          ocr_text: buildPdfMarkdown(),
+        }),
+      });
+      if (!response.ok) throw new Error("Unable to generate PDF.");
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${form.patient_id || view}-${view}.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+      setNotice({ type: "success", message: `${title} PDF downloaded.` });
+    } catch {
+      setNotice({ type: "error", message: "Unable to generate PDF download." });
+    }
+  };
 
   return (
     <section className="module-page">
@@ -112,7 +184,7 @@ export default function PatientWorkflowPage({ setNotice, view }: Props) {
         </div>
         {lookingUpPatient && <p className="muted">Auto-filling patient details...</p>}
         {view === "ip-admission" && <p className="muted">Deposit preview: ₹{amount.toLocaleString("en-IN")}</p>}
-        <div className="form-actions"><Button type="button" variant="secondary" onClick={save}>Save</Button><Button type="button" variant="ghost" onClick={() => window.print()}>Print</Button></div>
+        <div className="form-actions"><Button type="button" variant="secondary" onClick={save}>Save</Button><Button type="button" variant="ghost" onClick={() => (view === "prescription" || view === "discharge-summary" ? void downloadPdf() : window.print())}>{view === "prescription" || view === "discharge-summary" ? "Download PDF" : "Print"}</Button></div>
       </div>
       <div className="panel registration-desk-panel"><h4>Recent Records</h4>{savedRows.length === 0 ? <p className="muted">No records saved yet.</p> : savedRows.map((row) => <p key={row.id} className="muted"><strong>{row.patient_name}</strong> · {row.patient_id || "No UHID"} · {row.status || row.shift || row.billing_clearance || "saved"}</p>)}</div>
     </section>

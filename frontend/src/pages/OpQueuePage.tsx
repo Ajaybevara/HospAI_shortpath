@@ -26,6 +26,20 @@ const mapAppointmentStatus = (status?: string): QueuePatient["status"] => {
   return "Yet to Come";
 };
 
+const safeText = (value: unknown) => String(value ?? "-")
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;")
+  .replace(/'/g, "&#039;");
+
+const printField = (label: string, value: unknown) => `
+  <div class="queue-print-field">
+    <span>${safeText(label)}</span>
+    <strong>${safeText(value === "" || value === null || value === undefined ? "-" : value)}</strong>
+  </div>
+`;
+
 export default function OpQueuePage({ setNotice }: Props) {
   const [queue, setQueue] = useState<QueuePatient[]>([]);
   const [selectedToken, setSelectedToken] = useState("");
@@ -145,7 +159,90 @@ export default function OpQueuePage({ setNotice }: Props) {
       setNotice({ type: "warning", message: "Select a queue token before printing." });
       return;
     }
-    window.print();
+    const printedAt = new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+    const printWindow = window.open("", "_blank", "width=720,height=680");
+    if (!printWindow) {
+      setNotice({ type: "warning", message: "Popup blocked. Allow popups to print the selected queue slip." });
+      return;
+    }
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>${safeText(selectedPatient.token)} OP Queue Slip</title>
+          <style>
+            @page { size: A5 portrait; margin: 10mm; }
+            * { box-sizing: border-box; }
+            body { margin: 0; background: #ffffff; color: #111827; font-family: Arial, Helvetica, sans-serif; font-size: 11px; }
+            .queue-print-sheet { width: 100%; min-height: 100vh; }
+            .queue-print-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 12px; }
+            .queue-print-brand { display: flex; align-items: center; gap: 10px; }
+            .queue-print-brand img { width: 48px; height: 48px; object-fit: contain; }
+            .queue-print-brand strong { display: block; color: #062f56; font-size: 22px; line-height: 1; }
+            .queue-print-brand span { display: block; margin-top: 4px; color: #475569; font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; }
+            .queue-print-title { text-align: right; }
+            .queue-print-title h1 { margin: 0 0 5px; font-size: 16px; text-decoration: underline; }
+            .queue-print-title p { margin: 2px 0; color: #475569; }
+            .queue-print-token { margin: 0 0 12px; padding: 12px; border: 2px solid #111827; text-align: center; }
+            .queue-print-token span { display: block; color: #334155; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+            .queue-print-token strong { display: block; margin-top: 4px; color: #062f56; font-size: 32px; line-height: 1; }
+            .queue-print-section { border: 1px solid #111827; border-bottom: 0; }
+            .queue-print-section:last-child { border-bottom: 1px solid #111827; }
+            .queue-print-section h2 { margin: 0; padding: 6px 8px; border-bottom: 1px solid #111827; background: #eef7fb; color: #062f56; font-size: 12px; letter-spacing: 0.02em; text-transform: uppercase; }
+            .queue-print-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .queue-print-field { min-height: 32px; padding: 6px 8px; border-right: 1px solid #111827; border-bottom: 1px solid #111827; }
+            .queue-print-field:nth-child(2n) { border-right: 0; }
+            .queue-print-field span { display: block; margin-bottom: 3px; color: #334155; font-size: 9px; font-weight: 700; text-transform: uppercase; }
+            .queue-print-field strong { display: block; color: #111827; font-size: 11px; }
+            .queue-print-note { padding: 8px; border-bottom: 1px solid #111827; color: #334155; line-height: 1.45; }
+            .queue-print-signatures { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; margin-top: 24px; }
+            .queue-print-signatures div { padding-top: 22px; border-top: 1px solid #111827; text-align: center; font-weight: 700; }
+          </style>
+        </head>
+        <body>
+          <main class="queue-print-sheet">
+            <header class="queue-print-header">
+              <div class="queue-print-brand">
+                <img src="/logo.png" alt="HospAI logo" />
+                <div><strong>HospAI</strong><span>Smart Hospital Management</span></div>
+              </div>
+              <div class="queue-print-title">
+                <h1>OP Queue Slip</h1>
+                <p><strong>Printed:</strong> ${safeText(printedAt)}</p>
+              </div>
+            </header>
+            <div class="queue-print-token"><span>Token Number</span><strong>${safeText(selectedPatient.token)}</strong></div>
+            <section class="queue-print-section">
+              <h2>Patient Information</h2>
+              <div class="queue-print-grid">
+                ${printField("Patient Name", selectedPatient.name)}
+                ${printField("UHID / Patient ID", selectedPatient.uhid)}
+                ${printField("Age / Gender", selectedPatient.ageGender)}
+                ${printField("Mobile", selectedPatient.mobile || "-")}
+              </div>
+            </section>
+            <section class="queue-print-section">
+              <h2>Visit Information</h2>
+              <div class="queue-print-grid">
+                ${printField("Visit Type", selectedPatient.visitType)}
+                ${printField("Arrived At", selectedPatient.arrivedAt)}
+                ${printField("Status", selectedPatient.status)}
+                ${printField("Department / Doctor", "-")}
+              </div>
+            </section>
+            <section class="queue-print-section">
+              <h2>Queue Instructions</h2>
+              <div class="queue-print-note">Please wait until your token number is called. Keep this slip with you and present it at the OP consultation desk.</div>
+            </section>
+            <div class="queue-print-signatures"><div>Patient / Guardian</div><div>OP Desk</div></div>
+          </main>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
   };
 
   return (
@@ -162,7 +259,6 @@ export default function OpQueuePage({ setNotice }: Props) {
           <Button type="button" className="purple-action" onClick={callNext}>🔔 Call Next</Button>
           <Button type="button" onClick={() => void loadQueueFromPatients()}>⟳ Refresh</Button>
           <Button type="button" className="green-action" onClick={() => setNotice({ type: "success", message: `Queue Summary: ${counts.total} total, ${counts.inQueue} waiting, ${counts.inConsultation} in consultation, ${counts.completed} completed.` })}>▥ Queue Summary</Button>
-          <Button type="button" variant="ghost" onClick={printSelectedSlip}>▣ Print Queue Slip</Button>
         </div>
       </div>
 

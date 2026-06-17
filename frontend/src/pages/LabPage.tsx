@@ -71,6 +71,20 @@ function buildInvoiceNo(type: "lab" | "diagnostic", index: number) {
   return `${prefix}-${compactDate()}-${String(Date.now()).slice(-5)}-${index + 1}`;
 }
 
+const safeText = (value: unknown) => String(value ?? "-")
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;")
+  .replace(/'/g, "&#039;");
+
+const printField = (label: string, value: unknown) => `
+  <div class="lab-print-field">
+    <span>${safeText(label)}</span>
+    <strong>${safeText(value === "" || value === null || value === undefined ? "-" : value)}</strong>
+  </div>
+`;
+
 export default function LabPage({ setNotice }: Props) {
   const [activeTab, setActiveTab] = useState<"lab" | "diagnostic" | null>(null);
   const [labItems, setLabItems] = useState<ServiceItem[]>([]);

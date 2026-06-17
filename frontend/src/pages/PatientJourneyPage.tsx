@@ -48,6 +48,20 @@ type Admission = {
   notes?: string | null;
 };
 
+type DischargeSummary = {
+  id?: string;
+  patient_id?: string;
+  patient_name?: string;
+  admission_date?: string;
+  discharge_date?: string;
+  final_diagnosis?: string;
+  treatment_summary?: string;
+  discharge_medicines?: string;
+  follow_up_plan?: string;
+  billing_clearance?: string;
+  status?: string;
+};
+
 type JourneyEvent = {
   date?: string;
   title: string;
@@ -86,6 +100,17 @@ const printField = (label: string, value: unknown) => `
 const printEmptyRow = (columns: number, message: string) => `
   <tr><td colspan="${columns}" class="journey-print-empty">${safeText(message)}</td></tr>
 `;
+
+const loadLocalDischargeSummaries = (patientId?: string): DischargeSummary[] => {
+  if (!patientId || typeof window === "undefined") return [];
+  try {
+    const rows = JSON.parse(localStorage.getItem("hospai_discharge-summary") || "[]");
+    if (!Array.isArray(rows)) return [];
+    return rows.filter((row) => String(row?.patient_id || "") === patientId);
+  } catch {
+    return [];
+  }
+};
 
 export default function PatientJourneyPage({ setNotice }: Props) {
   const [query, setQuery] = useState("");
@@ -128,6 +153,9 @@ export default function PatientJourneyPage({ setNotice }: Props) {
     documents.forEach((document) => events.push({ date: document.created_at, title: `Document Uploaded`, detail: `${document.doc_type || "Document"}${document.file_name ? ` • ${document.file_name}` : ""}` }));
     return events.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
   }, [admissions, appointments, diagnostics, documents, invoices, selectedPatient]);
+
+  const dischargeSummaries = useMemo(() => loadLocalDischargeSummaries(selectedPatient?.patient_id), [selectedPatient]);
+  const latestDischargeSummary = dischargeSummaries[0] || null;
 
   const searchPatients = async () => {
     const trimmed = query.trim();
@@ -226,6 +254,26 @@ export default function PatientJourneyPage({ setNotice }: Props) {
           </tr>
         `).join("")
       : printEmptyRow(4, "No journey events found yet.");
+    const dischargeRows = latestDischargeSummary
+      ? `
+          <div class="journey-print-grid">
+            ${printField("Admission Date", latestDischargeSummary.admission_date || "-")}
+            ${printField("Discharge Date", latestDischargeSummary.discharge_date || "-")}
+            ${printField("Status", latestDischargeSummary.status || "-")}
+            ${printField("Billing Clearance", latestDischargeSummary.billing_clearance || "-")}
+          </div>
+          <div class="journey-print-notes">
+            <strong>Final Diagnosis</strong>
+            <p>${safeText(latestDischargeSummary.final_diagnosis || "-")}</p>
+            <strong>Treatment Summary</strong>
+            <p>${safeText(latestDischargeSummary.treatment_summary || "-")}</p>
+            <strong>Discharge Medicines</strong>
+            <p>${safeText(latestDischargeSummary.discharge_medicines || "-")}</p>
+            <strong>Follow-up Plan</strong>
+            <p>${safeText(latestDischargeSummary.follow_up_plan || "-")}</p>
+          </div>
+        `
+      : `<div class="journey-print-empty-block">No discharge summary recorded for this patient.</div>`;
     printWindow.document.write(`
       <!doctype html>
       <html>
@@ -375,6 +423,28 @@ export default function PatientJourneyPage({ setNotice }: Props) {
               color: #64748b;
               text-align: center !important;
             }
+            .journey-print-empty-block {
+              padding: 10px 8px;
+              color: #64748b;
+              border-bottom: 1px solid #111827;
+              text-align: center;
+            }
+            .journey-print-notes {
+              padding: 8px;
+              border-bottom: 1px solid #111827;
+            }
+            .journey-print-notes strong {
+              display: block;
+              margin: 0 0 3px;
+              color: #062f56;
+              font-size: 9px;
+              letter-spacing: 0.05em;
+              text-transform: uppercase;
+            }
+            .journey-print-notes p {
+              margin: 0 0 8px;
+              white-space: pre-wrap;
+            }
             .journey-print-signatures {
               display: grid;
               grid-template-columns: repeat(3, 1fr);
@@ -428,6 +498,11 @@ export default function PatientJourneyPage({ setNotice }: Props) {
                 ${printField("Total Due", money(totals.due))}
                 ${printField("Visits / Tests", `${totals.visits} / ${totals.tests}`)}
               </div>
+            </section>
+
+            <section class="journey-print-section">
+              <h2>Discharge Summary</h2>
+              ${dischargeRows}
             </section>
 
             <section class="journey-print-section">
@@ -523,6 +598,28 @@ export default function PatientJourneyPage({ setNotice }: Props) {
               <div><strong>Emergency Contact</strong><span>{selectedPatient.emergency_contact || "-"} {selectedPatient.emergency_relation ? `(${selectedPatient.emergency_relation})` : ""}</span></div>
               <div><strong>Family Mobile</strong><span>{selectedPatient.family_mobile || "-"}</span></div>
             </div>
+          </Card>
+
+          <Card>
+            <h4>Discharge Summary</h4>
+            {latestDischargeSummary ? (
+              <>
+                <div className="journey-detail-grid discharge-summary-grid">
+                  <div><strong>Admission Date</strong><span>{latestDischargeSummary.admission_date || "-"}</span></div>
+                  <div><strong>Discharge Date</strong><span>{latestDischargeSummary.discharge_date || "-"}</span></div>
+                  <div><strong>Status</strong><span>{latestDischargeSummary.status || "-"}</span></div>
+                  <div><strong>Billing Clearance</strong><span>{latestDischargeSummary.billing_clearance || "-"}</span></div>
+                </div>
+                <div className="journey-discharge-notes">
+                  <div><strong>Final Diagnosis</strong><p>{latestDischargeSummary.final_diagnosis || "-"}</p></div>
+                  <div><strong>Treatment Summary</strong><p>{latestDischargeSummary.treatment_summary || "-"}</p></div>
+                  <div><strong>Discharge Medicines</strong><p>{latestDischargeSummary.discharge_medicines || "-"}</p></div>
+                  <div><strong>Follow-up Plan</strong><p>{latestDischargeSummary.follow_up_plan || "-"}</p></div>
+                </div>
+              </>
+            ) : (
+              <p className="muted">No discharge summary recorded for this patient.</p>
+            )}
           </Card>
 
           <Card>

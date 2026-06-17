@@ -3178,29 +3178,81 @@ main {
 }
 
 .journey-stat-grid {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.85rem;
+  align-items: stretch;
+  margin: 0.95rem 0 0.95rem;
+}
+
+.patient-journey-print-area {
+  display: grid;
+  gap: 0.95rem;
+}
+
+.patient-journey-print-area > .panel,
+.patient-journey-print-area > .card,
+.patient-journey-print-area > [class*="card"] {
+  margin: 0;
+}
+
+.patient-journey-page .journey-stat-grid .stat-card {
+  min-height: 102px;
+  height: 100%;
+  display: grid;
+  align-content: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.patient-journey-page .journey-stat-grid .stat-card p,
+.patient-journey-page .journey-stat-grid .stat-card h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .journey-detail-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.7rem;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 0.85rem;
+  margin-top: 0.75rem;
 }
 
 .journey-detail-grid > div {
   border: 1px solid hsl(var(--border));
   border-radius: calc(var(--radius) - 4px);
-  padding: 0.65rem;
+  padding: 0.85rem;
   background: #fbfdff;
   display: grid;
   gap: 0.25rem;
+  min-height: 86px;
+  min-width: 0;
+  align-content: start;
+}
+
+.journey-detail-grid > div strong,
+.journey-detail-grid > div span {
+  overflow-wrap: anywhere;
+}
+
+.patient-journey-page .module-table {
+  margin-top: 0.65rem;
+  overflow: hidden;
 }
 
 .module-table-journey-tests .table-head,
 .module-table-journey-tests .table-row,
 .module-table-journey-invoices .table-head,
 .module-table-journey-invoices .table-row {
-  grid-template-columns: 1.05fr 1.1fr 1fr 0.7fr 0.85fr 0.7fr 0.7fr;
+  grid-template-columns: minmax(110px, 1.05fr) minmax(120px, 1.1fr) minmax(110px, 1fr) minmax(82px, 0.7fr) minmax(90px, 0.85fr) minmax(82px, 0.7fr) minmax(90px, 0.7fr);
+  align-items: center;
+}
+
+.module-table-journey-tests .table-head > span,
+.module-table-journey-tests .table-row > span,
+.module-table-journey-invoices .table-head > span,
+.module-table-journey-invoices .table-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .journey-timeline {

@@ -84,6 +84,13 @@ const DEFAULT_APPOINTMENT_FORM: AppointmentForm = {
   notes: "",
 };
 
+const OP_PAYMENT_METHODS = [
+  { value: "upi", label: "UPI", detail: "QR / UPI ID" },
+  { value: "card", label: "Card", detail: "Debit / Credit" },
+  { value: "bank", label: "Bank Transfer", detail: "NEFT / IMPS" },
+  { value: "cash", label: "Cash", detail: "Counter paid" },
+];
+
 function toDateTimeLocalValue(value?: string | null) {
   if (!value) return "";
   const parsed = new Date(String(value).replace(" ", "T"));
@@ -612,17 +619,36 @@ export default function OpPage({ setNotice, canEdit }: Props) {
               aria-label="OP consultation fee"
               disabled={!canEdit}
             />
-            <Select
-              value={appointmentForm.payment_mode}
-              onChange={(event) => setAppointmentForm((current) => ({ ...current, payment_mode: event.target.value }))}
-              aria-label="OP payment mode"
-              disabled={!canEdit}
-            >
-              <option value="upi">UPI</option>
-              <option value="card">Card</option>
-              <option value="bank">Bank Transfer</option>
-              <option value="cash">Cash</option>
-            </Select>
+            <div className="op-payment-card-field">
+              <span className="op-payment-label">Payment Method</span>
+              <Select
+                className="sr-only-select"
+                value={appointmentForm.payment_mode}
+                onChange={(event) => setAppointmentForm((current) => ({ ...current, payment_mode: event.target.value }))}
+                aria-label="OP payment mode"
+                disabled={!canEdit}
+              >
+                {OP_PAYMENT_METHODS.map((method) => (
+                  <option key={method.value} value={method.value}>{method.label}</option>
+                ))}
+              </Select>
+              <div className="op-payment-card-grid" role="radiogroup" aria-label="OP payment mode cards">
+                {OP_PAYMENT_METHODS.map((method) => (
+                  <button
+                    key={method.value}
+                    type="button"
+                    className={appointmentForm.payment_mode === method.value ? "op-payment-card selected" : "op-payment-card"}
+                    onClick={() => setAppointmentForm((current) => ({ ...current, payment_mode: method.value }))}
+                    disabled={!canEdit}
+                    role="radio"
+                    aria-checked={appointmentForm.payment_mode === method.value}
+                  >
+                    <strong>{method.label}</strong>
+                    <span>{method.detail}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
             <Button type="submit" variant="primary" disabled={!canEdit || savingAppointment}>
               {savingAppointment ? "Saving..." : appointmentForm.id ? "Update" : "Schedule"}
             </Button>

@@ -256,12 +256,20 @@ export default function RegistrationDeskPage({ mode, selectedPatient, setNotice 
     }
     setPatientSearchLoading(true);
     try {
+      setPatientResults([]);
       const data = await apiFetch<{ patients?: Patient[] }>(`/api/patients?q=${encodeURIComponent(query)}`);
       let results = data.patients || [];
       if (!results.length && /^\d{3,4}$/.test(query)) {
         const allData = await apiFetch<{ patients?: Patient[] }>("/api/patients");
         results = (allData.patients || []).filter((patient) => String(patient.patient_id || "").slice(-4) === query);
       }
+      const seenPatients = new Set<string>();
+      results = results.filter((patient) => {
+        const key = patient.patient_id || patient.phone || patient.aadhaar_number || patientFullName(patient);
+        if (!key || seenPatients.has(key)) return false;
+        seenPatients.add(key);
+        return true;
+      });
       setPatientResults(results);
       const normalizedQuery = query.toLowerCase();
       const exactPatient = results.find((patient) => {
@@ -600,6 +608,9 @@ export default function RegistrationDeskPage({ mode, selectedPatient, setNotice 
 
   const handleSelectConsentPatient = (patient: Patient) => {
     const fullName = patientFullName(patient) || patient.name || "";
+    const latestVisit = appointments
+      .filter((item) => item.patient_id === patient.patient_id || item.patient_name.toLowerCase() === fullName.toLowerCase())
+      .sort((a, b) => new Date(b.appointment_date || "").getTime() - new Date(a.appointment_date || "").getTime())[0];
     setSelectedConsentPatient(patient);
     setConsentForm((prev) => ({
       ...prev,
@@ -608,10 +619,12 @@ export default function RegistrationDeskPage({ mode, selectedPatient, setNotice 
       age: patient.age ? String(patient.age) : "",
       gender: normalizeConsentGender(patient.gender),
       mobile: patient.phone || "",
+      doctor_name: latestVisit?.doctor_name || prev.doctor_name,
       signed_by: fullName,
       relation_to_patient: "Self",
       attender_mobile: patient.family_mobile || patient.phone || "",
       patient_signature: fullName,
+      notes: latestVisit?.department ? `Latest visit department: ${latestVisit.department}` : prev.notes,
     }));
     setNotice({ type: "success", message: `${fullName || patient.patient_id} selected for consent.` });
   };
@@ -637,6 +650,22 @@ export default function RegistrationDeskPage({ mode, selectedPatient, setNotice 
       return { document_reference: notes };
     }
   };
+
+  const uniqueInsuranceChecks = useMemo(() => {
+    const seen = new Set<string>();
+    return insuranceChecks.filter((check) => {
+      const key = [
+        check.patient_id || "",
+        check.patient_name || "",
+        check.policy_number || "",
+        (check as any).claim_id || "",
+        check.insurer_name || "",
+      ].join("|").toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [insuranceChecks]);
 
   const appointmentInQueue = useMemo(
     () => appointments.filter((item) => ["scheduled", "checked_in", "in_consultation"].includes(item.status)),
@@ -666,6 +695,12 @@ export default function RegistrationDeskPage({ mode, selectedPatient, setNotice 
                 value={patientSearch}
                 onChange={(event) => setPatientSearch(event.target.value)}
                 placeholder="UHID / Mobile / Aadhaar / Name"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void handlePatientSearch();
+                  }
+                }}
               />
               <Button type="button" variant="secondary" onClick={() => void handlePatientSearch()} disabled={patientSearchLoading}>
                 {patientSearchLoading ? "Searching..." : "Search Patient"}
@@ -807,7 +842,17 @@ export default function RegistrationDeskPage({ mode, selectedPatient, setNotice 
           <div className="appointment-search-card">
             <div><h4>Patient Lookup</h4><p className="muted">Search by UHID, mobile number, Aadhaar number, or patient name.</p></div>
             <div className="appointment-search-row">
-              <Input value={patientSearch} onChange={(event) => setPatientSearch(event.target.value)} placeholder="UHID / Mobile / Aadhaar / Name" />
+              <Input
+                value={patientSearch}
+                onChange={(event) => setPatientSearch(event.target.value)}
+                placeholder="UHID / Mobile / Aadhaar / Name"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void handlePatientSearch();
+                  }
+                }}
+              />
               <Button type="button" variant="secondary" onClick={() => void handlePatientSearch()} disabled={patientSearchLoading}>{patientSearchLoading ? "Searching..." : "Search Patient"}</Button>
             </div>
             {patientResults.length > 0 && (
@@ -904,7 +949,7 @@ export default function RegistrationDeskPage({ mode, selectedPatient, setNotice 
               {savingInsurance ? "Saving Verification..." : "Save Verification"}
             </Button>
           </div>
-          {insuranceChecks.slice(0, 10).map((check) => (
+          {uniqueInsuranceChecks.slice(0, 10).map((check) => (
             <p key={check.id} className="muted">
               {check.patient_name} · {check.insurer_name} · {check.verification_status}
             </p>
