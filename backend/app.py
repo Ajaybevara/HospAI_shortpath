@@ -35,7 +35,7 @@ from utils.auth import (
     verify_admin_route_auth_token,
     verify_admin_route_password,
 )
-from utils.export import generate_pdf, generate_word
+from utils.export import draw_pdf_brand_header, generate_pdf, generate_word
 from utils.ocr import LANGUAGE_NAMES, extract_text_from_image
 from utils.storage import ObjectStorage
 from werkzeug.exceptions import BadRequest
@@ -1338,12 +1338,16 @@ def generate_executive_dashboard_pdf(hospital_id=None, hostname="localhost:5001"
         pdf.ln(3)
 
     # Page 1 Header Block (Title Block)
-    pdf.set_y(17)
+    draw_pdf_brand_header(pdf, 15, 16, title_width=80)
+    pdf.set_y(18)
+    pdf.set_x(94)
     pdf.set_font(font, "B", 14)
-    pdf.cell(180, 7, clean_txt("Keppler Healthcare - Executive Dashboard"), ln=True, align="C")
+    pdf.cell(101, 7, clean_txt("HospAI - Executive Dashboard"), ln=True, align="R")
     pdf.set_font(font, "", 8)
-    pdf.cell(180, 5, clean_txt("Hospital performance, operations, revenue, queue, beds, payments, and alerts"), ln=True, align="C")
-    pdf.cell(180, 5, clean_txt(f"Print Date: {format_print_date(now)}"), ln=True, align="C")
+    pdf.set_x(94)
+    pdf.cell(101, 5, clean_txt("Hospital performance, operations, revenue, queue, beds, payments, and alerts"), ln=True, align="R")
+    pdf.set_x(94)
+    pdf.cell(101, 5, clean_txt(f"Print Date: {format_print_date(now)}"), ln=True, align="R")
     pdf.ln(2)
     current_y = pdf.get_y()
     pdf.set_line_width(0.6)

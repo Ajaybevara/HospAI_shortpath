@@ -260,45 +260,15 @@ function App() {
       window.__hospai_share__ = undefined;
     };
   }, []);
-  const [profileActionsOpen, setProfileActionsOpen] = useState(false);
-  const profileActionsRef = useRef<HTMLDivElement | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [hospitalCode, setHospitalCodeState] = useState(getHospitalCode());
   const [collapsedSidebarGroups, setCollapsedSidebarGroups] = useState<Record<string, boolean>>({});
-  const [alerts, setAlerts] = useState<Alert[]>([
-    { id: "1", type: "error", icon: "emergency", title: "Emergency patient waiting", desc: "1 patient is waiting for emergency consultation.", time: "5 mins ago", read: false, module: "op-queue-management" },
-    { id: "2", type: "warning", icon: "rupee", title: "Outstanding dues > ₹10,000", desc: "23 patients outstanding dues need collection follow-up.", time: "15 mins ago", read: false, module: "billing-aging" },
-    { id: "3", type: "warning", icon: "stock", title: "Low stock: Paracetamol 500mg", desc: "Only 50 tablets remaining in stock.", time: "30 mins ago", read: false, module: "pharmacy" },
-    { id: "4", type: "info", icon: "lab", title: "Lab reports pending", desc: "12 reports are pending verification.", time: "45 mins ago", read: false, module: "lab" },
-    { id: "5", type: "success", icon: "backup", title: "Backup completed successfully", desc: "Daily backup completed at 02:00 AM.", time: "2 hours ago", read: false, module: "" },
-  ]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
   useEffect(() => {
     if (!notice) return;
     const timeoutId = window.setTimeout(() => setNotice(null), 4200);
     return () => window.clearTimeout(timeoutId);
   }, [notice]);
-
-  useEffect(() => {
-    if (!profileActionsOpen) return;
-
-    const handleDocumentClick = (event: MouseEvent) => {
-      if (!profileActionsRef.current?.contains(event.target as Node)) {
-        setProfileActionsOpen(false);
-      }
-    };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setProfileActionsOpen(false);
-    };
-
-    document.addEventListener("mousedown", handleDocumentClick);
-    document.addEventListener("keydown", handleEscape);
-
-    return () => {
-      document.removeEventListener("mousedown", handleDocumentClick);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [profileActionsOpen]);
 
   const permissions = useMemo(() => resolvePermissions(user), [user]);
   const hasPermission = (permission?: string) => !permission || (!!user && permissions.includes(permission));
@@ -935,55 +905,6 @@ function App() {
             ))}
           </nav>
         </div>
-        <div className="sidebar-bottom">
-          <div className="sidebar-profile-row" ref={profileActionsRef}>
-            <div className="employee-static-info" aria-label="Employee information">
-              <span className="profile-trigger-icon" aria-hidden="true">
-                <SidebarIcon name="profile" />
-              </span>
-              <span className="profile-trigger-text">
-                <span className="profile-name">{user.full_name || user.username}</span>
-                <span className="profile-subtext">{user.employee_id ? `ID ${user.employee_id}` : "No employee ID"}</span>
-              </span>
-            </div>
-            <button
-              type="button"
-              className="profile-gear-btn"
-              aria-label="Profile actions"
-              aria-haspopup="menu"
-              aria-expanded={profileActionsOpen}
-              title="Open profile actions"
-              onClick={() => setProfileActionsOpen((current) => !current)}
-            >
-              <FiSettings size={16} aria-hidden="true" />
-            </button>
-            {profileActionsOpen && (
-              <div className="sidebar-profile-actions" role="menu" aria-label="Profile actions">
-                <Button
-                  className="settings-footer-btn"
-                  variant="ghost"
-                  onClick={() => {
-                    setProfileActionsOpen(false);
-                    setSettingsOpen(true);
-                  }}
-                >
-                  Settings
-                </Button>
-                <Button
-                  type="button"
-                  className="logout-footer-btn"
-                  variant="ghost"
-                  onClick={() => {
-                    setProfileActionsOpen(false);
-                    setLogoutConfirmOpen(true);
-                  }}
-                >
-                  Log out
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
       </aside>
       <main>
         <Container size="full">
@@ -1005,6 +926,8 @@ function App() {
             analyticsLoading={dashboardAnalyticsLoading}
             onNavigate={navigateToPage}
             alerts={alerts}
+            user={user}
+            onLogout={() => setLogoutConfirmOpen(true)}
           />
         )}
 

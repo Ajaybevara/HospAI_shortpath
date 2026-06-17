@@ -95,10 +95,11 @@ export default function AlertsNotificationsPage({ alerts, setAlerts, setNotice, 
   };
 
   const handleTakeAction = (alert: Alert) => {
-    handleMarkAsRead(alert.id);
     if (alert.module) {
       onNavigate(alert.module);
+      setNotice({ type: "success", message: `Opening ${alert.title}.` });
     } else {
+      handleMarkAsRead(alert.id);
       setNotice({ type: "success", message: "Alert completed." });
     }
   };
@@ -146,7 +147,7 @@ export default function AlertsNotificationsPage({ alerts, setAlerts, setNotice, 
             </Button>
           )}
           {alerts.length > 0 && (
-            <Button type="button" variant="ghost" className="destructive" onClick={handleClearAll} style={{ color: "#a8263a" }}>
+            <Button type="button" variant="ghost" className="destructive" onClick={handleClearAll} style={{ background: "#a8263a", color: "#ffffff", borderColor: "#a8263a" }}>
               Clear all
             </Button>
           )}
@@ -217,7 +218,7 @@ export default function AlertsNotificationsPage({ alerts, setAlerts, setNotice, 
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
-                      justifycontent: "center",
+                      justifyContent: "center",
                       background: isActive ? "rgba(255,255,255,0.25)" : "#f1f5f9",
                       color: isActive ? "white" : "#475569",
                       padding: "0.1rem 0.35rem",
@@ -262,11 +263,11 @@ export default function AlertsNotificationsPage({ alerts, setAlerts, setNotice, 
                 alignItems: "center",
                 gap: "1.1rem",
                 padding: "0.9rem 1.1rem",
-                background: alert.read ? "#f8fafc" : "#ffffff",
+                background: "#ffffff",
                 borderLeft: alert.read ? "1px solid #e2e8f0" : `4px solid ${
                   alert.type === "error" ? "#ef4444" : alert.type === "warning" ? "#f59e0b" : alert.type === "success" ? "#10b981" : "#3b82f6"
                 }`,
-                opacity: alert.read ? 0.76 : 1,
+                opacity: 1,
                 transition: "all 0.16s ease",
               }}
             >
@@ -337,7 +338,7 @@ export default function AlertsNotificationsPage({ alerts, setAlerts, setNotice, 
                   variant="ghost"
                   className="destructive ui-button-sm"
                   onClick={() => handleDismiss(alert.id)}
-                  style={{ color: "#a8263a" }}
+                  style={{ background: "#a8263a", color: "#ffffff", borderColor: "#a8263a" }}
                   title="Dismiss alert"
                 >
                   Dismiss

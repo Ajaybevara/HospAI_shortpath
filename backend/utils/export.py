@@ -1,5 +1,6 @@
 """Export utilities for generating PDF and Word documents from OCR text"""
 import io
+import os
 import re
 from datetime import datetime
 from fpdf import FPDF
@@ -9,6 +10,37 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 BRAND_NAME = "HospAI"
 BRAND_TAGLINE = "AI-Driven Healthcare Optimization"
+
+
+def _frontend_logo_path():
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    candidates = [
+        os.path.join(root, "frontend", "public", "logo.png"),
+        os.path.join(root, "frontend", "dist", "logo.png"),
+    ]
+    return next((path for path in candidates if os.path.exists(path)), None)
+
+
+def draw_pdf_brand_header(pdf, left_margin: float, top_y: float, title_width: float = 120):
+    logo_path = _frontend_logo_path()
+    pdf.set_y(top_y)
+    pdf.set_x(left_margin)
+    if logo_path:
+        try:
+            pdf.image(logo_path, x=left_margin, y=top_y, w=16, h=16)
+        except Exception:
+            logo_path = None
+
+    text_x = left_margin + (20 if logo_path else 0)
+    pdf.set_xy(text_x, top_y + 1.5)
+    pdf.set_font("Helvetica", "B", 18)
+    pdf.set_text_color(20, 61, 94)
+    pdf.cell(title_width, 7, BRAND_NAME, ln=True)
+    pdf.set_x(text_x)
+    pdf.set_font("Helvetica", "", 8)
+    pdf.set_text_color(100, 100, 100)
+    pdf.cell(title_width, 5, BRAND_TAGLINE, ln=True)
+    pdf.set_text_color(0, 0, 0)
 
 
 def parse_markdown_line(line):
@@ -74,14 +106,8 @@ def generate_pdf(patient_name: str, doc_type: str, ocr_text: str, date_str: str 
     page_width = pdf.w
     effective_width = page_width - left_margin - right_margin
 
-    pdf.set_font("Helvetica", "B", 22)
-    pdf.set_text_color(20, 61, 94)
-    pdf.cell(effective_width, 12, BRAND_NAME, ln=True, align="C")
-    pdf.set_font("Helvetica", "", 10)
-    pdf.set_text_color(100, 100, 100)
-    pdf.cell(effective_width, 6, BRAND_TAGLINE, ln=True, align="C")
-    pdf.set_text_color(0, 0, 0)
-    pdf.ln(6)
+    draw_pdf_brand_header(pdf, left_margin, 14)
+    pdf.set_y(34)
 
     pdf.set_font("Helvetica", "B", 16)
     pdf.cell(effective_width, 10, "Medical Document Report", ln=True, align="C")

@@ -19,26 +19,22 @@ type QueuePatient = {
   mobile: string;
 };
 
-const INITIAL_QUEUE: QueuePatient[] = [
-  { token: "GM-001", uhid: "UHID123456", name: "Ramesh Kumar", ageGender: "45 / Male", visitType: "New", arrivedAt: "09:15 AM", status: "In Queue", mobile: "9876543210" },
-  { token: "GM-002", uhid: "UHID123457", name: "Sita Devi", ageGender: "32 / Female", visitType: "Follow Up", arrivedAt: "09:20 AM", status: "In Queue", mobile: "9876543211" },
-  { token: "GM-003", uhid: "UHID123458", name: "Mohd. Arif", ageGender: "28 / Male", visitType: "New", arrivedAt: "09:25 AM", status: "In Queue", mobile: "9876543212" },
-  { token: "GM-004", uhid: "UHID123459", name: "Pooja Sharma", ageGender: "36 / Female", visitType: "Follow Up", arrivedAt: "09:30 AM", status: "In Queue", mobile: "9876543213" },
-  { token: "GM-005", uhid: "UHID123460", name: "Suresh Yadav", ageGender: "50 / Male", visitType: "New", arrivedAt: "09:35 AM", status: "In Queue", mobile: "9876543214" },
-  { token: "GM-006", uhid: "UHID123461", name: "Anita Singh", ageGender: "41 / Female", visitType: "Follow Up", arrivedAt: "09:40 AM", status: "In Queue", mobile: "9876543215" },
-  { token: "GM-007", uhid: "UHID123462", name: "Vikram Mehta", ageGender: "29 / Male", visitType: "New", arrivedAt: "09:45 AM", status: "In Queue", mobile: "9876543216" },
-  { token: "GM-008", uhid: "UHID123463", name: "Neha Kumari", ageGender: "24 / Female", visitType: "Follow Up", arrivedAt: "09:50 AM", status: "In Queue", mobile: "9876543217" },
-];
+const mapAppointmentStatus = (status?: string): QueuePatient["status"] => {
+  if (status === "completed") return "Completed";
+  if (status === "in_consultation") return "In Consultation";
+  if (status === "checked_in" || status === "scheduled") return "In Queue";
+  return "Yet to Come";
+};
 
 export default function OpQueuePage({ setNotice }: Props) {
   const [queue, setQueue] = useState<QueuePatient[]>([]);
-  const [selectedToken, setSelectedToken] = useState("GM-001");
+  const [selectedToken, setSelectedToken] = useState("");
   const [search, setSearch] = useState("");
   const selectedPatient = queue.find((patient) => patient.token === selectedToken) || queue[0];
 
   const loadQueueFromPatients = async () => {
     try {
-      const data = await apiFetch<{ patients?: Array<any> }>("/api/patients");
+      const data = await apiFetch<{ appointments?: Array<any> }>("/api/appointments");
       const readmitQueue = JSON.parse(localStorage.getItem("hospai_op_queue") || "[]");
       const readmitEntries = (Array.isArray(readmitQueue) ? readmitQueue : [])
         .filter((item) => item && item.status !== "Completed")
@@ -52,26 +48,26 @@ export default function OpQueuePage({ setNotice }: Props) {
           status: (item.status || "In Queue") as QueuePatient["status"],
           mobile: String(item.mobile || ""),
         }));
-      const mapped = (data.patients || [])
-        .filter((patient) => !readmitEntries.some((entry) => entry.uhid === patient.patient_id))
-        .map((patient, index) => ({
-          token: `GM-${String(index + 1).padStart(3, "0")}`,
-          uhid: patient.patient_id || "",
-          name: [patient.name, patient.middle_name, patient.last_name].filter(Boolean).join(" ").trim() || patient.patient_id || "Patient",
-          ageGender: `${patient.age || "-"} / ${patient.gender || "-"}`,
-          visitType: index % 2 === 0 ? "New" : "Follow Up",
-          arrivedAt: patient.created_at ? new Date(patient.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--",
-          status: "In Queue" as const,
-          mobile: patient.phone || patient.family_mobile || "",
+      const mapped = (data.appointments || [])
+        .filter((appointment) => !["completed", "cancelled"].includes(String(appointment.status || "").toLowerCase()))
+        .filter((appointment) => !readmitEntries.some((entry) => entry.uhid === appointment.patient_id))
+        .map((appointment, index) => ({
+          token: appointment.token_no ? `GM-${String(appointment.token_no).padStart(3, "0")}` : `GM-${String(index + 1).padStart(3, "0")}`,
+          uhid: appointment.patient_id || "",
+          name: appointment.patient_name || appointment.patient_id || "Patient",
+          ageGender: "- / -",
+          visitType: appointment.appointment_kind || appointment.visit_type || "OP",
+          arrivedAt: appointment.appointment_date ? new Date(appointment.appointment_date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--",
+          status: mapAppointmentStatus(appointment.status),
+          mobile: "",
         }));
       const nextQueue = [...readmitEntries, ...mapped];
-      const finalQueue = nextQueue.length ? nextQueue : INITIAL_QUEUE;
-      setQueue(finalQueue);
-      setSelectedToken(finalQueue[0]?.token || "");
+      setQueue(nextQueue);
+      setSelectedToken(nextQueue[0]?.token || "");
     } catch (error) {
-      setQueue(INITIAL_QUEUE);
-      setSelectedToken(INITIAL_QUEUE[0]?.token || "");
-      setNotice({ type: "warning", message: "Unable to load live OP queue. Showing demo queue until backend is available." });
+      setQueue([]);
+      setSelectedToken("");
+      setNotice({ type: "warning", message: "Unable to load live OP queue." });
     }
   };
 
@@ -100,13 +96,23 @@ export default function OpQueuePage({ setNotice }: Props) {
     return "queue-badge";
   };
 
-  const callNext = () => setNotice({ type: "success", message: `Calling next patient: ${selectedPatient?.name || "queue patient"}.` });
+  const callNext = () => {
+    if (!selectedPatient) {
+      setNotice({ type: "warning", message: "No patient is currently in the OP queue." });
+      return;
+    }
+    setNotice({ type: "success", message: `Calling next patient: ${selectedPatient.name}.` });
+  };
   const saveReadmitQueueState = (nextQueue: QueuePatient[]) => {
     const readmitOnly = nextQueue.filter((patient) => patient.token.startsWith("RA-"));
     localStorage.setItem("hospai_op_queue", JSON.stringify(readmitOnly));
   };
 
   const updateSelectedStatus = (status: QueuePatient["status"]) => {
+    if (!selectedToken) {
+      setNotice({ type: "warning", message: "Select a queue token first." });
+      return;
+    }
     setQueue((current) => {
       const next = current.map((patient) => patient.token === selectedToken ? { ...patient, status } : patient);
       saveReadmitQueueState(next);
@@ -115,11 +121,23 @@ export default function OpQueuePage({ setNotice }: Props) {
     setNotice({ type: "success", message: `${selectedToken} moved to ${status}.` });
   };
   const removeToken = () => {
+    if (!selectedToken) {
+      setNotice({ type: "warning", message: "Select a queue token first." });
+      return;
+    }
     const nextQueue = queue.filter((patient) => patient.token !== selectedToken);
     setQueue(nextQueue);
     saveReadmitQueueState(nextQueue);
     setSelectedToken(nextQueue[0]?.token || "");
     setNotice({ type: "success", message: `${selectedToken} removed from queue.` });
+  };
+
+  const transferSelectedToken = () => {
+    if (!selectedToken) {
+      setNotice({ type: "warning", message: "Select a queue token first." });
+      return;
+    }
+    setNotice({ type: "success", message: `${selectedToken} is ready to transfer. Select target doctor from Doctor dropdown.` });
   };
 
   const printSelectedSlip = () => {
@@ -177,11 +195,15 @@ export default function OpQueuePage({ setNotice }: Props) {
             <table className="op-queue-table">
               <thead><tr><th>#</th><th>Token No.</th><th>UHID</th><th>Patient Name</th><th>Age / Gender</th><th>Visit Type</th><th>Arrived At</th><th>Status</th><th>Action</th></tr></thead>
               <tbody>
-                {filteredQueue.map((patient, index) => (
+                {filteredQueue.length ? filteredQueue.map((patient, index) => (
                   <tr key={patient.token} className={patient.token === selectedToken ? "selected" : ""} onClick={() => setSelectedToken(patient.token)}>
                     <td>{index + 1}</td><td>{patient.token}</td><td>{patient.uhid}</td><td>{patient.name}</td><td>{patient.ageGender}</td><td>{patient.visitType}</td><td>{patient.arrivedAt}</td><td><span className={getStatusBadgeClass(patient.status)}>{patient.status}</span></td><td><button>🔊</button><button>👁</button></td>
                   </tr>
-                ))}
+                )) : (
+                  <tr>
+                    <td colSpan={9} className="lab-empty-row">No active OP queue entries.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
             <div className="queue-pagination"><span>Showing 1 to {filteredQueue.length} of {queue.length} entries</span><div><button>‹</button><button className="active">1</button><button>2</button><button>3</button><button>4</button><button>›</button></div></div>
@@ -194,7 +216,7 @@ export default function OpQueuePage({ setNotice }: Props) {
               <button className="queue-action blue" onClick={() => updateSelectedStatus("In Consultation")}><b>♙ Start Consultation</b><small>Move patient to consultation</small><span>›</span></button>
               <button className="queue-action teal" onClick={() => updateSelectedStatus("Completed")}><b>✓ Finish Consultation</b><small>Mark consultation as completed</small><span>›</span></button>
               <button className="queue-action orange" onClick={() => updateSelectedStatus("Yet to Come")}><b>◷ Hold / Skip Token</b><small>Hold or skip this token</small><span>›</span></button>
-              <button className="queue-action purple" onClick={() => setNotice({ type: "success", message: `${selectedToken} is ready to transfer. Select target doctor from Doctor dropdown.` })}><b>⇄ Transfer Token</b><small>Transfer to another doctor</small><span>›</span></button>
+              <button className="queue-action purple" onClick={transferSelectedToken}><b>⇄ Transfer Token</b><small>Transfer to another doctor</small><span>›</span></button>
               <button className="queue-action red" onClick={removeToken}><b>⊗ Remove Token</b><small>Remove from queue</small><span>›</span></button>
             </div>
           </div>
@@ -203,8 +225,8 @@ export default function OpQueuePage({ setNotice }: Props) {
         <div>
           <div className="op-card patient-details-card">
             <h3>3. Patient Details</h3>
-            <div className="patient-summary-panel"><div className="patient-avatar">●</div><div className="patient-detail-grid"><span>Token No.</span><b>{selectedPatient?.token}</b><span>Visit Type</span><b>{selectedPatient?.visitType}</b><span>Patient Name</span><b>{selectedPatient?.name}</b><span>Department</span><b>General Medicine</b><span>UHID</span><b>{selectedPatient?.uhid}</b><span>Doctor</span><b>Dr. Amit Verma</b><span>Age / Gender</span><b>{selectedPatient?.ageGender}</b><span>Arrived At</span><b>{selectedPatient?.arrivedAt}</b><span>Mobile</span><b>{selectedPatient?.mobile}</b><span>Status</span><b className={getStatusBadgeClass(selectedPatient?.status)}>{selectedPatient?.status}</b></div></div>
-            <div className="clinical-panel"><h4>Visit / Clinical Information</h4><label>Chief Complaint<Input defaultValue="Fever and headache" /></label><label>Visit Reason<Input defaultValue="Not feeling well since 2 days" /></label><label>Previous Visit<Input defaultValue="12/04/2024" /></label><label>Referred By<Input defaultValue="Self" /></label></div>
+            <div className="patient-summary-panel"><div className="patient-avatar">●</div><div className="patient-detail-grid"><span>Token No.</span><b>{selectedPatient?.token || "-"}</b><span>Visit Type</span><b>{selectedPatient?.visitType || "-"}</b><span>Patient Name</span><b>{selectedPatient?.name || "-"}</b><span>Department</span><b>-</b><span>UHID</span><b>{selectedPatient?.uhid || "-"}</b><span>Doctor</span><b>-</b><span>Age / Gender</span><b>{selectedPatient?.ageGender || "-"}</b><span>Arrived At</span><b>{selectedPatient?.arrivedAt || "-"}</b><span>Mobile</span><b>{selectedPatient?.mobile || "-"}</b><span>Status</span><b className={getStatusBadgeClass(selectedPatient?.status)}>{selectedPatient?.status || "-"}</b></div></div>
+            <div className="clinical-panel"><h4>Visit / Clinical Information</h4><label>Chief Complaint<Input defaultValue="" /></label><label>Visit Reason<Input defaultValue="" /></label><label>Previous Visit<Input defaultValue="" /></label><label>Referred By<Input defaultValue="" /></label></div>
           </div>
           <div className="op-card print-slip-card"><h3>5. Print Queue Slip</h3><div className="print-slip-grid"><label>Token No.<Input value={selectedToken} onChange={(event) => setSelectedToken(event.target.value)} /></label><label>Print Format<Select defaultValue="Queue Slip"><option>Queue Slip</option><option>Doctor Copy</option></Select></label><Button type="button" className="yellow-action" onClick={printSelectedSlip}>▣ Print Slip</Button></div></div>
         </div>
